@@ -1,0 +1,14 @@
+*.iml
+.gradle
+.kotlin
+/local.properties
+/.idea
+.DS_Store
+build/
+**/build/
+.cxx
+captures
+*.hprof
+*.apk
+*.aab
+nido_launch.png

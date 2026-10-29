@@ -1,0 +1,428 @@
+package com.nido.music.feature.music.ui.player
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.Player
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.nido.music.feature.music.ui.library.LibraryViewModel
+
+private val AmberPrimary = Color(0xFFF59E0B)
+private val CanvasFloor = Color(0xFF0B0B0E)
+private val GlassCardLevel3 = Color(0xD9101018)
+private val EdgeSpecular = Color(0x24FFFFFF)
+private val TextPrimary = Color(0xFFF8FAFC)
+private val TextSecondary = Color(0xA6F8FAFC)
+private val TextTertiary = Color(0x61F8FAFC)
+
+@Composable
+fun PlayerScreen(
+    onNavigateBack: () -> Unit = {},
+    onNavigateToClipTrimmer: (Long) -> Unit = {},
+    modifier: Modifier = Modifier,
+    viewModel: LibraryViewModel = hiltViewModel()
+) {
+    val controller = viewModel.playbackController
+    val currentSong by controller.currentSong.collectAsState()
+    val isPlaying by controller.isPlaying.collectAsState()
+    val position by controller.currentPosition.collectAsState()
+    val duration by controller.duration.collectAsState()
+    val shuffleEnabled by controller.shuffleEnabled.collectAsState()
+    val repeatMode by controller.repeatMode.collectAsState()
+    val sleepTimerRemaining by controller.sleepTimerRemaining.collectAsState()
+
+    var showSleepTimerDialog by remember { mutableStateOf(false) }
+    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val playerBackdrop = rememberLayerBackdrop()
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(CanvasFloor)
+    ) {
+        // Sampled layer
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(playerBackdrop)
+        ) {
+            // Ambient light orbs
+            Box(
+                modifier = Modifier
+                    .size(360.dp)
+                    .align(Alignment.TopCenter)
+                    .padding(top = 80.dp)
+                    .blur(100.dp)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                AmberPrimary.copy(alpha = 0.35f),
+                                Color(0xFFD97706).copy(alpha = 0.2f),
+                                Color.Transparent
+                            )
+                        ),
+                        CircleShape
+                    )
+            )
+
+            // Album Artwork Container
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = statusBarHeight + 64.dp)
+                    .size(280.dp)
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(Color(0xFF181820))
+                    .border(1.dp, EdgeSpecular, RoundedCornerShape(32.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MusicNote,
+                    contentDescription = null,
+                    tint = AmberPrimary.copy(alpha = 0.4f),
+                    modifier = Modifier.size(96.dp)
+                )
+            }
+        }
+
+        // Top Navigation & Action Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = statusBarHeight + 8.dp, start = 16.dp, end = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Back button
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .drawBackdrop(
+                        backdrop = playerBackdrop,
+                        shape = { RoundedCornerShape(22.dp) },
+                        effects = {
+                            blur(16.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color(0x551E1E26))
+                        }
+                    )
+                    .border(1.dp, EdgeSpecular, RoundedCornerShape(22.dp))
+                    .clickable { onNavigateBack() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = TextPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // Share Clip Action
+            Box(
+                modifier = Modifier
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .drawBackdrop(
+                        backdrop = playerBackdrop,
+                        shape = { RoundedCornerShape(20.dp) },
+                        effects = {
+                            blur(16.dp.toPx())
+                        },
+                        onDrawSurface = {
+                            drawRect(Color(0x551E1E26))
+                        }
+                    )
+                    .border(1.dp, EdgeSpecular, RoundedCornerShape(20.dp))
+                    .clickable {
+                        currentSong?.let { onNavigateToClipTrimmer(it.id) }
+                    }
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCut,
+                        contentDescription = "Trim Clip",
+                        tint = AmberPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.size(6.dp))
+                    Text(
+                        text = "Share Clip",
+                        color = AmberPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        // Hero Controls Panel
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .drawBackdrop(
+                    backdrop = playerBackdrop,
+                    shape = { RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp) },
+                    effects = {
+                        blur(36.dp.toPx())
+                    },
+                    onDrawSurface = {
+                        drawRect(GlassCardLevel3)
+                    }
+                )
+                .border(1.dp, EdgeSpecular, RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp))
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 24.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Drag handle
+                Box(
+                    modifier = Modifier
+                        .size(width = 36.dp, height = 4.dp)
+                        .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Track Title & Artist
+                Text(
+                    text = currentSong?.title ?: "No Song Playing",
+                    color = TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = currentSong?.artist ?: "Select music from your library",
+                    color = TextSecondary,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Scrubber Slider
+                val progressFraction = if (duration > 0) (position.toFloat() / duration.toFloat()).coerceIn(0f, 1f) else 0f
+                Slider(
+                    value = progressFraction,
+                    onValueChange = { fraction ->
+                        controller.seekTo((fraction * duration).toLong())
+                    },
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color.White,
+                        activeTrackColor = AmberPrimary,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.12f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = formatDuration(position), color = TextTertiary, fontSize = 12.sp)
+                    Text(text = formatDuration(duration), color = TextTertiary, fontSize = 12.sp)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Playback Controls Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { controller.toggleShuffle() }) {
+                        Icon(
+                            imageVector = Icons.Default.Shuffle,
+                            contentDescription = "Shuffle",
+                            tint = if (shuffleEnabled) AmberPrimary else TextSecondary
+                        )
+                    }
+                    IconButton(onClick = { controller.skipPrevious() }) {
+                        Icon(
+                            imageVector = Icons.Default.SkipPrevious,
+                            contentDescription = "Previous",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+
+                    // Hero Play/Pause Button
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .shadow(24.dp, CircleShape, spotColor = AmberPrimary)
+                            .clip(CircleShape)
+                            .background(AmberPrimary)
+                            .clickable { controller.togglePlayPause() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            tint = CanvasFloor,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+
+                    IconButton(onClick = { controller.skipNext() }) {
+                        Icon(
+                            imageVector = Icons.Default.SkipNext,
+                            contentDescription = "Next",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    IconButton(onClick = { controller.toggleRepeat() }) {
+                        Icon(
+                            imageVector = when (repeatMode) {
+                                Player.REPEAT_MODE_ONE -> Icons.Default.RepeatOne
+                                else -> Icons.Default.Repeat
+                            },
+                            contentDescription = "Repeat",
+                            tint = if (repeatMode != Player.REPEAT_MODE_OFF) AmberPrimary else TextSecondary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Bottom Utilities Row: Queue & Sleep Timer
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    IconButton(onClick = { showSleepTimerDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Timer,
+                            contentDescription = "Sleep Timer",
+                            tint = if (sleepTimerRemaining != null) AmberPrimary else TextSecondary
+                        )
+                    }
+                    IconButton(onClick = {}) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                            contentDescription = "Queue",
+                            tint = TextSecondary
+                        )
+                    }
+                }
+            }
+        }
+
+        // Sleep Timer Dialog
+        if (showSleepTimerDialog) {
+            AlertDialog(
+                onDismissRequest = { showSleepTimerDialog = false },
+                title = { Text("Sleep Timer") },
+                text = {
+                    Column {
+                        listOf(15, 30, 45, 60).forEach { mins ->
+                            TextButton(
+                                onClick = {
+                                    controller.startSleepTimer(mins)
+                                    showSleepTimerDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("$mins minutes", color = AmberPrimary)
+                            }
+                        }
+                        if (sleepTimerRemaining != null) {
+                            TextButton(
+                                onClick = {
+                                    controller.cancelSleepTimer()
+                                    showSleepTimerDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Turn Off", color = Color.Red)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showSleepTimerDialog = false }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+    }
+}
+
+private fun formatDuration(ms: Long): String {
+    val totalSecs = (ms / 1000).coerceAtLeast(0)
+    val mins = totalSecs / 60
+    val secs = totalSecs % 60
+    return String.format("%d:%02d", mins, secs)
+}
