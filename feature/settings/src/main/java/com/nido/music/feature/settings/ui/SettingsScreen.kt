@@ -62,6 +62,7 @@ fun SettingsScreen(
 ) {
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val folders by viewModel.folders.collectAsState()
+    val rescanTriggered by viewModel.rescanTriggered.collectAsState()
 
     val settingsBackdrop = rememberLayerBackdrop()
 
@@ -138,7 +139,7 @@ fun SettingsScreen(
                     SettingsRow(
                         icon = Icons.Default.Refresh,
                         title = "Rescan All Folders",
-                        subtitle = "Incremental scan by mtime",
+                        subtitle = if (rescanTriggered) "Scan scheduled in background" else "Incremental scan by mtime",
                         onClick = { viewModel.triggerRescan() }
                     )
                     folders.forEach { f ->

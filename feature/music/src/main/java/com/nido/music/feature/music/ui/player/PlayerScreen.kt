@@ -23,6 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -35,6 +37,11 @@ import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -72,6 +79,7 @@ private val TextPrimary = Color(0xFFF8FAFC)
 private val TextSecondary = Color(0xA6F8FAFC)
 private val TextTertiary = Color(0x61F8FAFC)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
     onNavigateBack: () -> Unit = {},
@@ -81,6 +89,7 @@ fun PlayerScreen(
 ) {
     val controller = viewModel.playbackController
     val currentSong by controller.currentSong.collectAsState()
+    val currentQueue by controller.currentQueue.collectAsState()
     val isPlaying by controller.isPlaying.collectAsState()
     val position by controller.currentPosition.collectAsState()
     val duration by controller.duration.collectAsState()
@@ -89,6 +98,7 @@ fun PlayerScreen(
     val sleepTimerRemaining by controller.sleepTimerRemaining.collectAsState()
 
     var showSleepTimerDialog by remember { mutableStateOf(false) }
+    var showQueueSheet by remember { mutableStateOf(false) }
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val playerBackdrop = rememberLayerBackdrop()
 
@@ -249,23 +259,40 @@ fun PlayerScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Track Title & Artist
-                Text(
-                    text = currentSong?.title ?: "No Song Playing",
-                    color = TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = currentSong?.artist ?: "Select music from your library",
-                    color = TextSecondary,
-                    fontSize = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                // Track Title & Artist with Like Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = currentSong?.title ?: "No Song Playing",
+                            color = TextPrimary,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = currentSong?.artist ?: "Select music from your library",
+                            color = TextSecondary,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    currentSong?.let { song ->
+                        IconButton(onClick = { viewModel.toggleLike(song.id) }) {
+                            Icon(
+                                imageVector = if (song.liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = "Like",
+                                tint = if (song.liked) AmberPrimary else TextSecondary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -368,11 +395,11 @@ fun PlayerScreen(
                             tint = if (sleepTimerRemaining != null) AmberPrimary else TextSecondary
                         )
                     }
-                    IconButton(onClick = {}) {
+                    IconButton(onClick = { showQueueSheet = true }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                             contentDescription = "Queue",
-                            tint = TextSecondary
+                            tint = if (showQueueSheet) AmberPrimary else TextSecondary
                         )
                     }
                 }
@@ -416,6 +443,83 @@ fun PlayerScreen(
                     }
                 }
             )
+        }
+
+        // Queue Bottom Sheet
+        if (showQueueSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showQueueSheet = false },
+                containerColor = Color(0xFF14141A)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "Current Queue (${currentQueue.size} songs)",
+                        color = TextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (currentQueue.isEmpty()) {
+                        Text(
+                            text = "No upcoming tracks in queue",
+                            color = TextSecondary,
+                            modifier = Modifier.padding(vertical = 24.dp)
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().height(320.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(currentQueue, key = { it.id }) { qSong ->
+                                val isCurrent = qSong.id == currentSong?.id
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(
+                                            if (isCurrent) AmberPrimary.copy(alpha = 0.15f)
+                                            else Color.White.copy(alpha = 0.03f)
+                                        )
+                                        .clickable {
+                                            controller.playSong(qSong, currentQueue)
+                                            showQueueSheet = false
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MusicNote,
+                                        contentDescription = null,
+                                        tint = if (isCurrent) AmberPrimary else TextSecondary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.size(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = qSong.title,
+                                            color = if (isCurrent) AmberPrimary else TextPrimary,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = qSong.artist,
+                                            color = TextSecondary,
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

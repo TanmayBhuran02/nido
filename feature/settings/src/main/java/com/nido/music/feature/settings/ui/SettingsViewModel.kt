@@ -11,8 +11,10 @@ import com.nido.music.core.database.dao.LibraryFolderDao
 import com.nido.music.core.database.entity.LibraryFolderEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -26,7 +28,10 @@ class SettingsViewModel @Inject constructor(
     val folders: StateFlow<List<LibraryFolderEntity>> = folderDao.getAllFolders()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val rescanTriggered = MutableStateFlow(false)
+
     fun triggerRescan() {
+        rescanTriggered.value = true
         val workerClass = try {
             Class.forName("com.nido.music.feature.music.data.scanner.ScanWorker")
                 .asSubclass(ListenableWorker::class.java)

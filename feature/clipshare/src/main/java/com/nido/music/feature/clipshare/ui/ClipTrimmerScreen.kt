@@ -1,5 +1,9 @@
 package com.nido.music.feature.clipshare.ui
 
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,7 +54,6 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
 
 private val AmberPrimary = Color(0xFFF59E0B)
 private val CanvasFloor = Color(0xFF0B0B0E)
@@ -128,7 +131,6 @@ fun ClipTrimmerScreen(
                             shape = { RoundedCornerShape(32.dp) },
                             effects = {
                                 blur(28.dp.toPx())
-                                lens(16.dp.toPx(), 32.dp.toPx())
                             },
                             onDrawSurface = {
                                 drawRect(GlassCardBg)
@@ -202,12 +204,41 @@ fun ClipTrimmerScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (exportSuccess != null) {
-                    Text(
-                        text = "Clip saved successfully!",
-                        color = AmberPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    val context = LocalContext.current
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Clip saved successfully!",
+                            color = AmberPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                try {
+                                    val file = File(exportSuccess!!)
+                                    val uri = FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        file
+                                    )
+                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "audio/*"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, "Share Clip"))
+                                } catch (_: Exception) {}
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AmberPrimary.copy(alpha = 0.2f)),
+                            shape = CircleShape
+                        ) {
+                            Text("Share via App...", color = AmberPrimary, fontSize = 13.sp)
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.weight(1f))

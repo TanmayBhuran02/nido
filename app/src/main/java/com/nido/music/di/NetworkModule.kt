@@ -54,6 +54,6 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideMusicSourceProvider(
-        jamendoSourceProvider: com.nido.music.core.network.jamendo.JamendoSourceProvider
-    ): com.nido.music.core.network.MusicSourceProvider = jamendoSourceProvider
+        audiusSourceProvider: com.nido.music.core.network.audius.AudiusSourceProvider
+    ): com.nido.music.core.network.MusicSourceProvider = audiusSourceProvider
 }

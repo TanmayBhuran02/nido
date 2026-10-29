@@ -13,6 +13,7 @@ import com.nido.music.core.database.dao.LibraryFolderDao
 import com.nido.music.core.database.dao.PlaylistDao
 import com.nido.music.core.database.dao.SongDao
 import com.nido.music.core.database.entity.LibraryFolderEntity
+import com.nido.music.core.database.entity.PlaylistEntity
 import com.nido.music.core.database.entity.SongEntity
 import com.nido.music.feature.music.data.playback.PlaybackController
 import com.nido.music.feature.music.data.scanner.ScanWorker
@@ -23,10 +24,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class PlaylistWithCount(
+    val playlist: PlaylistEntity,
+    val count: Int
+)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -47,6 +54,9 @@ class LibraryViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val likedSongs: StateFlow<List<SongEntity>> = songDao.getLikedSongs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val albums: StateFlow<List<String>> = songDao.getDistinctAlbums()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -56,8 +66,52 @@ class LibraryViewModel @Inject constructor(
     val folders: StateFlow<List<String>> = songDao.getDistinctFolders()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val playlists: StateFlow<List<PlaylistEntity>> = playlistDao.getAllPlaylists()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val selectedPlaylistId = MutableStateFlow<Long?>(null)
+
+    val playlistSongs: StateFlow<List<SongEntity>> = selectedPlaylistId
+        .flatMapLatest { id ->
+            if (id != null) playlistDao.getSongsInPlaylist(id)
+            else kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
+
+    fun createPlaylist(name: String) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            playlistDao.insertPlaylist(PlaylistEntity(name = name.trim()))
+        }
+    }
+
+    fun deletePlaylist(id: Long) {
+        viewModelScope.launch {
+            playlistDao.deletePlaylist(id)
+            if (selectedPlaylistId.value == id) {
+                selectedPlaylistId.value = null
+            }
+        }
+    }
+
+    fun addSongToPlaylist(playlistId: Long, songId: Long) {
+        viewModelScope.launch {
+            playlistDao.addSongToPlaylist(playlistId, songId)
+        }
+    }
+
+    fun removeSongFromPlaylist(playlistId: Long, songId: Long) {
+        viewModelScope.launch {
+            playlistDao.removeSongFromPlaylist(playlistId, songId)
+        }
+    }
+
+    fun selectPlaylist(id: Long?) {
+        selectedPlaylistId.value = id
+    }
 
     fun onFolderSelected(uri: Uri) {
         viewModelScope.launch {
@@ -90,8 +144,8 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    fun playSong(song: SongEntity) {
-        playbackController.playSong(song, songs.value)
+    fun playSong(song: SongEntity, queue: List<SongEntity> = songs.value) {
+        playbackController.playSong(song, queue)
     }
 
     fun toggleLike(songId: Long) {

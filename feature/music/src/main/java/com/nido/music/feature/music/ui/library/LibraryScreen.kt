@@ -28,18 +28,28 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -48,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,15 +94,21 @@ fun LibraryScreen(
     viewModel: LibraryViewModel = hiltViewModel()
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Songs", "Albums", "Artists", "Folders")
+    val tabs = listOf("Songs", "Playlists", "Liked", "Albums", "Artists", "Folders")
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     var isSearchActive by remember { mutableStateOf(false) }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var newPlaylistTitle by remember { mutableStateOf("") }
 
     val songs by viewModel.songs.collectAsState()
+    val likedSongs by viewModel.likedSongs.collectAsState()
+    val playlists by viewModel.playlists.collectAsState()
     val albums by viewModel.albums.collectAsState()
     val artists by viewModel.artists.collectAsState()
     val folders by viewModel.folders.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val selectedPlaylistId by viewModel.selectedPlaylistId.collectAsState()
+    val playlistSongs by viewModel.playlistSongs.collectAsState()
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -301,13 +318,157 @@ fun LibraryScreen(
                                 items(songs, key = { it.id }) { song ->
                                     SongRowItem(
                                         song = song,
-                                        onClick = { viewModel.playSong(song) },
-                                        onToggleLike = { viewModel.toggleLike(song.id) }
+                                        onClick = { viewModel.playSong(song, songs) },
+                                        onToggleLike = { viewModel.toggleLike(song.id) },
+                                        playlists = playlists,
+                                        onAddToPlaylist = { pId -> viewModel.addSongToPlaylist(pId, song.id) }
                                     )
                                 }
                             }
                         }
                         1 -> {
+                            // Playlists List
+                            if (selectedPlaylistId != null) {
+                                val currentPlaylist = playlists.find { it.id == selectedPlaylistId }
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        TextButton(onClick = { viewModel.selectPlaylist(null) }) {
+                                            Text("← Back to Playlists", color = AmberPrimary)
+                                        }
+                                        Spacer(modifier = Modifier.weight(1f))
+                                        Text(
+                                            text = currentPlaylist?.name ?: "Playlist",
+                                            color = TextPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp
+                                        )
+                                    }
+                                    if (playlistSongs.isEmpty()) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("No songs in playlist yet", color = TextSecondary)
+                                        }
+                                    } else {
+                                        LazyColumn(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            items(playlistSongs, key = { it.id }) { song ->
+                                                SongRowItem(
+                                                    song = song,
+                                                    onClick = { viewModel.playSong(song, playlistSongs) },
+                                                    onToggleLike = { viewModel.toggleLike(song.id) }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    item {
+                                        Button(
+                                            onClick = {
+                                                newPlaylistTitle = ""
+                                                showCreatePlaylistDialog = true
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = AmberPrimary),
+                                            shape = RoundedCornerShape(14.dp),
+                                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, tint = CanvasFloor)
+                                            Spacer(modifier = Modifier.size(8.dp))
+                                            Text("Create New Playlist", color = CanvasFloor, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    items(playlists, key = { it.id }) { playlist ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(Color.White.copy(alpha = 0.03f))
+                                                .clickable { viewModel.selectPlaylist(playlist.id) }
+                                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(44.dp)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(AmberPrimary.copy(alpha = 0.15f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.PlaylistPlay,
+                                                    contentDescription = null,
+                                                    tint = AmberPrimary,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.size(12.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = playlist.name,
+                                                    color = TextPrimary,
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    text = "Tap to view songs",
+                                                    color = TextSecondary,
+                                                    fontSize = 12.sp
+                                                )
+                                            }
+                                            IconButton(onClick = { viewModel.deletePlaylist(playlist.id) }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Delete",
+                                                    tint = Color.White.copy(alpha = 0.4f),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        2 -> {
+                            // Liked Songs
+                            if (likedSongs.isEmpty()) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("No liked songs yet. Tap heart on any song!", color = TextSecondary)
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    items(likedSongs, key = { it.id }) { song ->
+                                        SongRowItem(
+                                            song = song,
+                                            onClick = { viewModel.playSong(song, likedSongs) },
+                                            onToggleLike = { viewModel.toggleLike(song.id) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        3 -> {
                             // Albums List
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
@@ -324,7 +485,7 @@ fun LibraryScreen(
                                 }
                             }
                         }
-                        2 -> {
+                        4 -> {
                             // Artists List
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
@@ -341,7 +502,7 @@ fun LibraryScreen(
                                 }
                             }
                         }
-                        3 -> {
+                        5 -> {
                             // Folders List
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
@@ -415,6 +576,37 @@ fun LibraryScreen(
                 }
             }
         }
+
+        // Create Playlist Dialog
+        if (showCreatePlaylistDialog) {
+            AlertDialog(
+                onDismissRequest = { showCreatePlaylistDialog = false },
+                title = { Text("New Playlist", color = TextPrimary) },
+                text = {
+                    OutlinedTextField(
+                        value = newPlaylistTitle,
+                        onValueChange = { newPlaylistTitle = it },
+                        label = { Text("Playlist Name") },
+                        singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.createPlaylist(newPlaylistTitle)
+                            showCreatePlaylistDialog = false
+                        }
+                    ) {
+                        Text("Create", color = AmberPrimary)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCreatePlaylistDialog = false }) {
+                        Text("Cancel", color = TextSecondary)
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -422,8 +614,12 @@ fun LibraryScreen(
 private fun SongRowItem(
     song: SongEntity,
     onClick: () -> Unit,
-    onToggleLike: () -> Unit
+    onToggleLike: () -> Unit,
+    playlists: List<com.nido.music.core.database.entity.PlaylistEntity> = emptyList(),
+    onAddToPlaylist: (Long) -> Unit = {}
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -472,6 +668,35 @@ private fun SongRowItem(
                 tint = if (song.liked) AmberPrimary else TextSecondary,
                 modifier = Modifier.size(20.dp)
             )
+        }
+        if (playlists.isNotEmpty()) {
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    playlists.forEach { pl ->
+                        DropdownMenuItem(
+                            text = { Text("Add to ${pl.name}") },
+                            leadingIcon = {
+                                Icon(Icons.Default.PlaylistAdd, contentDescription = null, tint = AmberPrimary)
+                            },
+                            onClick = {
+                                onAddToPlaylist(pl.id)
+                                showMenu = false
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }

@@ -40,6 +40,9 @@ class PlaybackController @Inject constructor(
     private val _currentSong = MutableStateFlow<SongEntity?>(null)
     val currentSong: StateFlow<SongEntity?> = _currentSong.asStateFlow()
 
+    private val _currentQueue = MutableStateFlow<List<SongEntity>>(emptyList())
+    val currentQueue: StateFlow<List<SongEntity>> = _currentQueue.asStateFlow()
+
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
@@ -119,6 +122,7 @@ class PlaybackController @Inject constructor(
 
     fun playSong(song: SongEntity, fullList: List<SongEntity> = listOf(song)) {
         _currentSong.value = song
+        _currentQueue.value = fullList
         player?.let { p ->
             val mediaItems = fullList.map { s ->
                 MediaItem.Builder()
