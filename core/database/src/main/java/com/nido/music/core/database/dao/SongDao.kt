@@ -91,6 +91,9 @@ interface SongDao {
     fun getSongCount(): Flow<Int>
 
     /** Get the first song in an album (for cover art lookup). */
+    @Query("SELECT * FROM songs WHERE uri = :uri LIMIT 1")
+    suspend fun getSongByUri(uri: String): SongEntity?
+
     @Query("SELECT * FROM songs WHERE album = :album LIMIT 1")
     suspend fun getFirstSongInAlbum(album: String): SongEntity?
 

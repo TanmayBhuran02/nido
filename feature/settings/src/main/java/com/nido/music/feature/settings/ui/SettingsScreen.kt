@@ -1,5 +1,16 @@
 package com.nido.music.feature.settings.ui
 
+import android.content.Intent
+import android.media.audiofx.AudioEffect
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -63,6 +74,11 @@ fun SettingsScreen(
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val folders by viewModel.folders.collectAsState()
     val rescanTriggered by viewModel.rescanTriggered.collectAsState()
+    val context = LocalContext.current
+
+    var showSleepTimerInfoDialog by remember { mutableStateOf(false) }
+    var showThemeDialog by remember { mutableStateOf(false) }
+    var selectedThemeMode by remember { mutableStateOf("System Default") }
 
     val settingsBackdrop = rememberLayerBackdrop()
 
@@ -117,15 +133,25 @@ fun SettingsScreen(
                     SettingsRow(
                         icon = Icons.Default.Equalizer,
                         title = "Equalizer & Audio FX",
-                        subtitle = "System DSP integration",
-                        onClick = {}
+                        subtitle = "Launch system audio DSP",
+                        onClick = {
+                            val eqIntent = Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
+                                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
+                                putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
+                            }
+                            if (eqIntent.resolveActivity(context.packageManager) != null) {
+                                context.startActivity(eqIntent)
+                            } else {
+                                Toast.makeText(context, "No system equalizer app found on this device", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     SettingsRow(
                         icon = Icons.Default.Timer,
                         title = "Sleep Timer",
-                        subtitle = "Configure automatic fade out",
-                        onClick = {}
+                        subtitle = "Quick-set 15/30/45/60 min in Player screen",
+                        onClick = { showSleepTimerInfoDialog = true }
                     )
                 }
 
@@ -162,9 +188,9 @@ fun SettingsScreen(
                 ) {
                     SettingsRow(
                         icon = Icons.Default.Palette,
-                        title = "Liquid Glass UI",
-                        subtitle = "zone.ien.backdrop:2.0.0-alpha06 active",
-                        onClick = {}
+                        title = "Liquid Glass Theme",
+                        subtitle = selectedThemeMode,
+                        onClick = { showThemeDialog = true }
                     )
                 }
             }
@@ -193,6 +219,64 @@ fun SettingsScreen(
                 color = TextPrimary,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
+            )
+        }
+
+        if (showSleepTimerInfoDialog) {
+            AlertDialog(
+                onDismissRequest = { showSleepTimerInfoDialog = false },
+                title = { Text("Sleep Timer") },
+                text = {
+                    Text(
+                        "The sleep timer is accessible directly inside the full-screen Player view. Tap the timer icon to configure 15, 30, 45, or 60 minute auto fade-out.",
+                        color = TextSecondary
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { showSleepTimerInfoDialog = false }) {
+                        Text("Understood", color = AmberPrimary)
+                    }
+                }
+            )
+        }
+
+        if (showThemeDialog) {
+            val themes = listOf("System Default", "Liquid Glass (Dark)", "OLED Black")
+            AlertDialog(
+                onDismissRequest = { showThemeDialog = false },
+                title = { Text("Appearance Theme") },
+                text = {
+                    Column {
+                        themes.forEach { theme ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedThemeMode = theme
+                                        showThemeDialog = false
+                                    }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                RadioButton(
+                                    selected = selectedThemeMode == theme,
+                                    onClick = {
+                                        selectedThemeMode = theme
+                                        showThemeDialog = false
+                                    },
+                                    colors = RadioButtonDefaults.colors(selectedColor = AmberPrimary)
+                                )
+                                Spacer(modifier = Modifier.size(8.dp))
+                                Text(theme, color = TextPrimary)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showThemeDialog = false }) {
+                        Text("Close", color = AmberPrimary)
+                    }
+                }
             )
         }
     }

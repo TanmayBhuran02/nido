@@ -102,10 +102,16 @@ class PlaybackController @Inject constructor(
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val uriStr = mediaItem?.mediaId
                 if (uriStr != null) {
+                    // Fast sync with current queue first
+                    val matchInQueue = _currentQueue.value.find { it.uri == uriStr }
+                    if (matchInQueue != null) {
+                        _currentSong.value = matchInQueue
+                    }
                     scope.launch(Dispatchers.IO) {
-                        val song = songDao.getAllSongs()
-                        // Resolve song from database by uri
-                        songDao.getSongsByIds(emptyList()) // Trigger check
+                        val dbSong = songDao.getSongByUri(uriStr)
+                        if (dbSong != null) {
+                            _currentSong.value = dbSong
+                        }
                     }
                 }
             }

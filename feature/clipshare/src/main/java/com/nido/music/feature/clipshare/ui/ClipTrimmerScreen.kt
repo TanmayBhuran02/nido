@@ -50,10 +50,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
 
 private val AmberPrimary = Color(0xFFF59E0B)
 private val CanvasFloor = Color(0xFF0B0B0E)
@@ -81,65 +77,49 @@ fun ClipTrimmerScreen(
     val exportSuccess by viewModel.exportSuccess.collectAsState()
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val trimmerBackdrop = rememberLayerBackdrop()
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(CanvasFloor)
     ) {
-        // Sampled layer
+        // Ambient background glow
         Box(
             modifier = Modifier
+                .size(320.dp)
+                .align(Alignment.Center)
+                .blur(90.dp)
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            AmberPrimary.copy(alpha = 0.25f),
+                            Color(0xFFE07B3C).copy(alpha = 0.15f),
+                            Color.Transparent
+                        )
+                    ),
+                    CircleShape
+                )
+        )
+
+        Column(
+            modifier = Modifier
                 .fillMaxSize()
-                .layerBackdrop(trimmerBackdrop)
+                .padding(top = statusBarHeight + 64.dp, start = 20.dp, end = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Ambient orbs
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Waveform Trimmer Card
             Box(
                 modifier = Modifier
-                    .size(320.dp)
-                    .align(Alignment.Center)
-                    .blur(90.dp)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(
-                                AmberPrimary.copy(alpha = 0.25f),
-                                Color(0xFFE07B3C).copy(alpha = 0.15f),
-                                Color.Transparent
-                            )
-                        ),
-                        CircleShape
-                    )
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = statusBarHeight + 64.dp, start = 20.dp, end = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(GlassCardBg)
+                    .border(1.dp, EdgeSpecular, RoundedCornerShape(32.dp))
+                    .padding(20.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Waveform Trimmer Card
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .clip(RoundedCornerShape(32.dp))
-                        .drawBackdrop(
-                            backdrop = trimmerBackdrop,
-                            shape = { RoundedCornerShape(32.dp) },
-                            effects = {
-                                blur(28.dp.toPx())
-                            },
-                            onDrawSurface = {
-                                drawRect(GlassCardBg)
-                            }
-                        )
-                        .border(1.dp, EdgeSpecular, RoundedCornerShape(32.dp))
-                        .padding(20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
@@ -272,23 +252,13 @@ fun ClipTrimmerScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
             }
-        }
 
         // Top Bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(statusBarHeight + 56.dp)
-                .drawBackdrop(
-                    backdrop = trimmerBackdrop,
-                    shape = { RoundedCornerShape(0.dp) },
-                    effects = {
-                        blur(20.dp.toPx())
-                    },
-                    onDrawSurface = {
-                        drawRect(Color(0xA6181820))
-                    }
-                )
+                .background(Color(0xD914141A))
                 .border(0.5.dp, EdgeSpecular, RoundedCornerShape(0.dp))
                 .padding(top = statusBarHeight, start = 16.dp, end = 16.dp),
             contentAlignment = Alignment.CenterStart

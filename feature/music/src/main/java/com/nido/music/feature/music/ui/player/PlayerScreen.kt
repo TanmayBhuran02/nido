@@ -1,5 +1,8 @@
 package com.nido.music.feature.music.ui.player
 
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import java.io.File
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -137,18 +140,28 @@ fun PlayerScreen(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = statusBarHeight + 64.dp)
-                    .size(280.dp)
-                    .clip(RoundedCornerShape(32.dp))
+                    .size(260.dp)
+                    .clip(RoundedCornerShape(28.dp))
                     .background(Color(0xFF181820))
-                    .border(1.dp, EdgeSpecular, RoundedCornerShape(32.dp)),
+                    .border(1.dp, EdgeSpecular, RoundedCornerShape(28.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.MusicNote,
-                    contentDescription = null,
-                    tint = AmberPrimary.copy(alpha = 0.4f),
-                    modifier = Modifier.size(96.dp)
-                )
+                val coverPath = currentSong?.coverArtPath
+                if (coverPath != null && File(coverPath).exists()) {
+                    AsyncImage(
+                        model = File(coverPath),
+                        contentDescription = "Album Art",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = null,
+                        tint = AmberPrimary.copy(alpha = 0.4f),
+                        modifier = Modifier.size(96.dp)
+                    )
+                }
             }
         }
 
@@ -244,7 +257,7 @@ fun PlayerScreen(
                 )
                 .border(1.dp, EdgeSpecular, RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp))
                 .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 24.dp)
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -257,7 +270,7 @@ fun PlayerScreen(
                         .background(Color.White.copy(alpha = 0.2f), CircleShape)
                 )
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Track Title & Artist with Like Toggle
                 Row(
@@ -268,16 +281,16 @@ fun PlayerScreen(
                         Text(
                             text = currentSong?.title ?: "No Song Playing",
                             color = TextPrimary,
-                            fontSize = 20.sp,
+                            fontSize = 19.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = currentSong?.artist ?: "Select music from your library",
                             color = TextSecondary,
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -294,7 +307,7 @@ fun PlayerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Scrubber Slider
                 val progressFraction = if (duration > 0) (position.toFloat() / duration.toFloat()).coerceIn(0f, 1f) else 0f
@@ -319,7 +332,7 @@ fun PlayerScreen(
                     Text(text = formatDuration(duration), color = TextTertiary, fontSize = 12.sp)
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Playback Controls Row
                 Row(
@@ -346,8 +359,8 @@ fun PlayerScreen(
                     // Hero Play/Pause Button
                     Box(
                         modifier = Modifier
-                            .size(64.dp)
-                            .shadow(24.dp, CircleShape, spotColor = AmberPrimary)
+                            .size(60.dp)
+                            .shadow(20.dp, CircleShape, spotColor = AmberPrimary)
                             .clip(CircleShape)
                             .background(AmberPrimary)
                             .clickable { controller.togglePlayPause() },
@@ -357,7 +370,7 @@ fun PlayerScreen(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play",
                             tint = CanvasFloor,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(32.dp)
                         )
                     }
 
@@ -381,7 +394,7 @@ fun PlayerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Bottom Utilities Row: Queue & Sleep Timer
                 Row(
