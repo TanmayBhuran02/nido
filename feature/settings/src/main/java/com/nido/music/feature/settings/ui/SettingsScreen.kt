@@ -74,18 +74,45 @@ fun SettingsScreen(
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val folders by viewModel.folders.collectAsState()
     val rescanTriggered by viewModel.rescanTriggered.collectAsState()
+    val currentThemeMode by viewModel.themeMode.collectAsState()
+    val selectedThemeMode = currentThemeMode.title
     val context = LocalContext.current
 
     var showSleepTimerInfoDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
-    var selectedThemeMode by remember { mutableStateOf("System Default") }
+
+    val isLight = currentThemeMode == com.nido.music.core.common.ThemeMode.LIGHT
+    val isOled = currentThemeMode == com.nido.music.core.common.ThemeMode.OLED
+    val currentCanvasFloor = when {
+        isOled -> Color.Black
+        isLight -> Color(0xFFF3F4F6)
+        else -> CanvasFloor
+    }
+    val currentGlassCardBg = when {
+        isOled -> Color(0xFF0F0F12).copy(alpha = 0.90f)
+        isLight -> Color.White.copy(alpha = 0.82f)
+        else -> GlassCardBg
+    }
+    val currentEdgeSpecular = when {
+        isOled -> Color(0x33FFFFFF)
+        isLight -> Color(0x1F000000)
+        else -> EdgeSpecular
+    }
+    val currentTextPrimary = when {
+        isLight -> Color(0xFF0F172A)
+        else -> TextPrimary
+    }
+    val currentTextSecondary = when {
+        isLight -> Color(0xBF0F172A)
+        else -> TextSecondary
+    }
 
     val settingsBackdrop = rememberLayerBackdrop()
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(CanvasFloor)
+            .background(currentCanvasFloor)
     ) {
         // Sampled layer
         Box(
@@ -128,12 +155,16 @@ fun SettingsScreen(
                 // Playback Group
                 SettingsGlassGroup(
                     backdrop = settingsBackdrop,
-                    title = "Playback"
+                    title = "Playback",
+                    glassCardBg = currentGlassCardBg,
+                    edgeSpecular = currentEdgeSpecular
                 ) {
                     SettingsRow(
                         icon = Icons.Default.Equalizer,
                         title = "Equalizer & Audio FX",
                         subtitle = "Launch system audio DSP",
+                        textPrimary = currentTextPrimary,
+                        textSecondary = currentTextSecondary,
                         onClick = {
                             val eqIntent = Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
                                 putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
@@ -151,6 +182,8 @@ fun SettingsScreen(
                         icon = Icons.Default.Timer,
                         title = "Sleep Timer",
                         subtitle = "Quick-set 15/30/45/60 min in Player screen",
+                        textPrimary = currentTextPrimary,
+                        textSecondary = currentTextSecondary,
                         onClick = { showSleepTimerInfoDialog = true }
                     )
                 }
@@ -160,12 +193,16 @@ fun SettingsScreen(
                 // Storage Group
                 SettingsGlassGroup(
                     backdrop = settingsBackdrop,
-                    title = "Library & Storage (${folders.size} folders)"
+                    title = "Library & Storage (${folders.size} folders)",
+                    glassCardBg = currentGlassCardBg,
+                    edgeSpecular = currentEdgeSpecular
                 ) {
                     SettingsRow(
                         icon = Icons.Default.Refresh,
                         title = "Rescan All Folders",
                         subtitle = if (rescanTriggered) "Scan scheduled in background" else "Incremental scan by mtime",
+                        textPrimary = currentTextPrimary,
+                        textSecondary = currentTextSecondary,
                         onClick = { viewModel.triggerRescan() }
                     )
                     folders.forEach { f ->
@@ -174,6 +211,8 @@ fun SettingsScreen(
                             icon = Icons.Default.SdCard,
                             title = f.displayName,
                             subtitle = f.treeUri,
+                            textPrimary = currentTextPrimary,
+                            textSecondary = currentTextSecondary,
                             onClick = { viewModel.removeFolder(f.treeUri) }
                         )
                     }
@@ -184,12 +223,16 @@ fun SettingsScreen(
                 // Appearance Group
                 SettingsGlassGroup(
                     backdrop = settingsBackdrop,
-                    title = "Appearance"
+                    title = "Appearance",
+                    glassCardBg = currentGlassCardBg,
+                    edgeSpecular = currentEdgeSpecular
                 ) {
                     SettingsRow(
                         icon = Icons.Default.Palette,
                         title = "Liquid Glass Theme",
                         subtitle = selectedThemeMode,
+                        textPrimary = currentTextPrimary,
+                        textSecondary = currentTextSecondary,
                         onClick = { showThemeDialog = true }
                     )
                 }
@@ -207,16 +250,16 @@ fun SettingsScreen(
                         blur(20.dp.toPx())
                     },
                     onDrawSurface = {
-                        drawRect(Color(0xA6181820))
+                        drawRect(if (isLight) Color.White.copy(alpha = 0.88f) else Color(0xA6181820))
                     }
                 )
-                .border(0.5.dp, EdgeSpecular, RoundedCornerShape(0.dp))
+                .border(0.5.dp, currentEdgeSpecular, RoundedCornerShape(0.dp))
                 .padding(top = statusBarHeight, start = 20.dp, end = 16.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             Text(
                 text = "Settings",
-                color = TextPrimary,
+                color = currentTextPrimary,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -225,11 +268,11 @@ fun SettingsScreen(
         if (showSleepTimerInfoDialog) {
             AlertDialog(
                 onDismissRequest = { showSleepTimerInfoDialog = false },
-                title = { Text("Sleep Timer") },
+                title = { Text("Sleep Timer", color = currentTextPrimary) },
                 text = {
                     Text(
                         "The sleep timer is accessible directly inside the full-screen Player view. Tap the timer icon to configure 15, 30, 45, or 60 minute auto fade-out.",
-                        color = TextSecondary
+                        color = currentTextSecondary
                     )
                 },
                 confirmButton = {
@@ -241,10 +284,15 @@ fun SettingsScreen(
         }
 
         if (showThemeDialog) {
-            val themes = listOf("System Default", "Liquid Glass (Dark)", "OLED Black")
+            val themes = listOf(
+                "System Default",
+                "Liquid Glass (Dark)",
+                "Liquid Glass (Light)",
+                "OLED Black"
+            )
             AlertDialog(
                 onDismissRequest = { showThemeDialog = false },
-                title = { Text("Appearance Theme") },
+                title = { Text("Appearance Theme", color = currentTextPrimary) },
                 text = {
                     Column {
                         themes.forEach { theme ->
@@ -253,7 +301,7 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        selectedThemeMode = theme
+                                        viewModel.setThemeMode(theme)
                                         showThemeDialog = false
                                     }
                                     .padding(vertical = 8.dp)
@@ -261,13 +309,13 @@ fun SettingsScreen(
                                 RadioButton(
                                     selected = selectedThemeMode == theme,
                                     onClick = {
-                                        selectedThemeMode = theme
+                                        viewModel.setThemeMode(theme)
                                         showThemeDialog = false
                                     },
                                     colors = RadioButtonDefaults.colors(selectedColor = AmberPrimary)
                                 )
                                 Spacer(modifier = Modifier.size(8.dp))
-                                Text(theme, color = TextPrimary)
+                                Text(theme, color = currentTextPrimary)
                             }
                         }
                     }
@@ -286,6 +334,8 @@ fun SettingsScreen(
 private fun SettingsGlassGroup(
     backdrop: Backdrop,
     title: String,
+    glassCardBg: Color = GlassCardBg,
+    edgeSpecular: Color = EdgeSpecular,
     content: @Composable () -> Unit
 ) {
     Column {
@@ -307,10 +357,10 @@ private fun SettingsGlassGroup(
                         blur(20.dp.toPx())
                     },
                     onDrawSurface = {
-                        drawRect(GlassCardBg)
+                        drawRect(glassCardBg)
                     }
                 )
-                .border(1.dp, EdgeSpecular, RoundedCornerShape(24.dp))
+                .border(1.dp, edgeSpecular, RoundedCornerShape(24.dp))
                 .padding(16.dp)
         ) {
             Column {
@@ -325,6 +375,8 @@ private fun SettingsRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    textPrimary: Color = TextPrimary,
+    textSecondary: Color = TextSecondary,
     onClick: () -> Unit
 ) {
     Row(
@@ -351,20 +403,20 @@ private fun SettingsRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = TextPrimary,
+                color = textPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium
             )
             Text(
                 text = subtitle,
-                color = TextSecondary,
+                color = textSecondary,
                 fontSize = 12.sp
             )
         }
         Icon(
             imageVector = Icons.Default.ChevronRight,
             contentDescription = null,
-            tint = TextSecondary,
+            tint = textSecondary,
             modifier = Modifier.size(20.dp)
         )
     }

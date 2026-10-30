@@ -22,6 +22,9 @@ fun GlassCard(
     shape: Shape = RoundedCornerShape(24.dp),
     content: @Composable () -> Unit
 ) {
+    val tints = com.nido.music.ui.theme.LocalGlassTints.current
+    val surfaceColor = if (level == GlassLevel.Level2 || level == GlassLevel.Level3) tints.elevated else tints.surface
+
     Box(
         modifier = modifier
             .drawBackdrop(
@@ -31,10 +34,10 @@ fun GlassCard(
                     blur(level.blurRadius.toPx())
                 },
                 onDrawSurface = {
-                    drawRect(level.surfaceColor)
+                    drawRect(surfaceColor)
                 }
             )
-            .border(1.dp, NidoEdgeSpecular, shape)
+            .border(1.dp, tints.edgeSpecular, shape)
     ) {
         content()
     }

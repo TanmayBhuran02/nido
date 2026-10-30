@@ -68,6 +68,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var playbackController: PlaybackController
 
+    @Inject
+    lateinit var themeManager: com.nido.music.core.common.ThemeManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         try {
             installSplashScreen()
@@ -77,7 +80,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            NidoTheme {
+            val themeMode by themeManager.themeMode.collectAsState()
+            val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val isDark = when (themeMode) {
+                com.nido.music.core.common.ThemeMode.SYSTEM -> isSystemDark
+                com.nido.music.core.common.ThemeMode.LIGHT -> false
+                com.nido.music.core.common.ThemeMode.DARK, com.nido.music.core.common.ThemeMode.OLED -> true
+            }
+            val isOled = themeMode == com.nido.music.core.common.ThemeMode.OLED
+
+            NidoTheme(darkTheme = isDark, isOled = isOled) {
                 NidoApp(playbackController)
             }
         }
@@ -94,11 +106,12 @@ fun NidoApp(playbackController: PlaybackController) {
     val isPlaying by playbackController.isPlaying.collectAsState()
 
     val showBottomBar = currentRoute in TopLevelDestination.entries.map { it.route }
+    val tints = com.nido.music.ui.theme.LocalGlassTints.current
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(NidoCanvasFloor)
+            .background(tints.canvasFloor)
     ) {
         NidoNavHost(
             navController = navController,

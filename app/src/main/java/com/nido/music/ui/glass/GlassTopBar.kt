@@ -33,6 +33,7 @@ fun GlassTopBar(
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
+    val tints = com.nido.music.ui.theme.LocalGlassTints.current
     val level = GlassLevel.Level2
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -47,10 +48,10 @@ fun GlassTopBar(
                     blur(level.blurRadius.toPx())
                 },
                 onDrawSurface = {
-                    drawRect(level.surfaceColor)
+                    drawRect(tints.elevated)
                 }
             )
-            .border(width = 0.5.dp, color = NidoEdgeSpecular, shape = RectangleShape)
+            .border(width = 0.5.dp, color = tints.edgeSpecular, shape = RectangleShape)
             .padding(top = topInset, start = 20.dp, end = 16.dp),
         contentAlignment = Alignment.CenterStart
     ) {
@@ -60,7 +61,7 @@ fun GlassTopBar(
         ) {
             Text(
                 text = title,
-                color = NidoTextPrimary,
+                color = tints.textPrimary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )

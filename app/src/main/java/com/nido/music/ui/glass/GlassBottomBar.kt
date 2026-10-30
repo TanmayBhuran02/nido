@@ -42,6 +42,7 @@ fun GlassBottomBar(
     onNavigate: (TopLevelDestination) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val tints = com.nido.music.ui.theme.LocalGlassTints.current
     val level = GlassLevel.Level2
     val shape = RoundedCornerShape(32.dp)
 
@@ -57,10 +58,10 @@ fun GlassBottomBar(
                     blur(level.blurRadius.toPx())
                 },
                 onDrawSurface = {
-                    drawRect(level.surfaceColor)
+                    drawRect(tints.elevated)
                 }
             )
-            .border(1.dp, NidoEdgeSpecular, shape)
+            .border(1.dp, tints.edgeSpecular, shape)
             .clip(shape),
         contentAlignment = Alignment.Center
     ) {
@@ -72,7 +73,7 @@ fun GlassBottomBar(
             TopLevelDestination.entries.forEach { destination ->
                 val selected = currentRoute == destination.route
                 val iconColor by animateColorAsState(
-                    targetValue = if (selected) NidoAmberAccent else NidoTextTertiary,
+                    targetValue = if (selected) tints.accent else tints.textTertiary,
                     label = "iconColor"
                 )
                 val textColor by animateColorAsState(

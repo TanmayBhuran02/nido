@@ -49,6 +49,7 @@ fun GlassMiniPlayer(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val tints = com.nido.music.ui.theme.LocalGlassTints.current
     val level = GlassLevel.Level2
     val shape = RoundedCornerShape(24.dp)
 
@@ -64,10 +65,10 @@ fun GlassMiniPlayer(
                     blur(level.blurRadius.toPx())
                 },
                 onDrawSurface = {
-                    drawRect(level.surfaceColor)
+                    drawRect(tints.elevated)
                 }
             )
-            .border(1.dp, NidoEdgeSpecular, shape)
+            .border(1.dp, tints.edgeSpecular, shape)
             .clip(shape)
             .clickable { onClick() }
             .padding(horizontal = 14.dp),
@@ -100,7 +101,7 @@ fun GlassMiniPlayer(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = song.title,
-                    color = NidoTextPrimary,
+                    color = tints.textPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -108,7 +109,7 @@ fun GlassMiniPlayer(
                 )
                 Text(
                     text = song.artist,
-                    color = NidoTextSecondary,
+                    color = tints.textSecondary,
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -129,7 +130,7 @@ fun GlassMiniPlayer(
                 Icon(
                     imageVector = Icons.Default.SkipNext,
                     contentDescription = "Next",
-                    tint = NidoTextPrimary,
+                    tint = tints.textPrimary,
                     modifier = Modifier.size(24.dp)
                 )
             }

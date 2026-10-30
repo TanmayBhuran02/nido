@@ -7,6 +7,8 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.ListenableWorker
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
+import com.nido.music.core.common.ThemeManager
+import com.nido.music.core.common.ThemeMode
 import com.nido.music.core.database.dao.LibraryFolderDao
 import com.nido.music.core.database.entity.LibraryFolderEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,8 +24,15 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val folderDao: LibraryFolderDao
+    private val folderDao: LibraryFolderDao,
+    private val themeManager: ThemeManager
 ) : ViewModel() {
+
+    val themeMode: StateFlow<ThemeMode> = themeManager.themeMode
+
+    fun setThemeMode(title: String) {
+        themeManager.setThemeMode(title)
+    }
 
     val folders: StateFlow<List<LibraryFolderEntity>> = folderDao.getAllFolders()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -31,7 +40,6 @@ class SettingsViewModel @Inject constructor(
     val rescanTriggered = MutableStateFlow(false)
 
     fun triggerRescan() {
-        rescanTriggered.value = true
         val workerClass = try {
             Class.forName("com.nido.music.feature.music.data.scanner.ScanWorker")
                 .asSubclass(ListenableWorker::class.java)
@@ -39,12 +47,16 @@ class SettingsViewModel @Inject constructor(
             null
         }
         if (workerClass != null) {
-            val workRequest = OneTimeWorkRequest.Builder(workerClass).build()
-            WorkManager.getInstance(context).enqueueUniqueWork(
-                "rescan_all",
-                ExistingWorkPolicy.REPLACE,
-                workRequest
-            )
+            try {
+                val workRequest = OneTimeWorkRequest.Builder(workerClass).build()
+                WorkManager.getInstance(context).enqueueUniqueWork(
+                    "rescan_all",
+                    ExistingWorkPolicy.REPLACE,
+                    workRequest
+                )
+                rescanTriggered.value = true
+            } catch (_: Exception) {
+            }
         }
     }
 

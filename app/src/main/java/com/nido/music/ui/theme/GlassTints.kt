@@ -8,14 +8,24 @@ import androidx.compose.ui.unit.dp
 data class GlassTints(
     val surface: Color,
     val elevated: Color,
-    val accent: Color
+    val accent: Color,
+    val canvasFloor: Color = NidoCanvasFloor,
+    val edgeSpecular: Color = NidoEdgeSpecular,
+    val textPrimary: Color = NidoTextPrimary,
+    val textSecondary: Color = NidoTextSecondary,
+    val textTertiary: Color = NidoTextTertiary
 )
 
 val LocalGlassTints = compositionLocalOf {
     GlassTints(
         surface = NidoGlassLevel1,
         elevated = NidoGlassLevel2,
-        accent = NidoAmberAccent
+        accent = NidoAmberAccent,
+        canvasFloor = NidoCanvasFloor,
+        edgeSpecular = NidoEdgeSpecular,
+        textPrimary = NidoTextPrimary,
+        textSecondary = NidoTextSecondary,
+        textTertiary = NidoTextTertiary
     )
 }
 

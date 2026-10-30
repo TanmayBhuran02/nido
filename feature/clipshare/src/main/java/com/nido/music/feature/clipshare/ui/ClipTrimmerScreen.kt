@@ -33,6 +33,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -81,7 +82,7 @@ fun ClipTrimmerScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(CanvasFloor)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // Ambient background glow
         Box(
