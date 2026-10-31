@@ -38,6 +38,7 @@ abstract class NidoDatabase : RoomDatabase() {
     abstract fun libraryFolderDao(): LibraryFolderDao
 
     companion object {
-        const val DATABASE_NAME = "nido_music.db"
+        const val DATABASE_NAME = "nido_music_secure.db"
+        const val LEGACY_DATABASE_NAME = "nido_music.db"
     }
 }

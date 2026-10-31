@@ -56,4 +56,15 @@ object NetworkModule {
     fun provideMusicSourceProvider(
         spotDLSourceProvider: com.nido.music.core.network.spotdl.SpotDLSourceProvider
     ): com.nido.music.core.network.MusicSourceProvider = spotDLSourceProvider
+
+    @Provides
+    @Singleton
+    fun provideMusicSyncApi(okHttpClient: OkHttpClient, json: Json): com.nido.music.core.network.sync.MusicSyncApi {
+        return Retrofit.Builder()
+            .baseUrl("http://10.0.2.2:8000/")
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(com.nido.music.core.network.sync.MusicSyncApi::class.java)
+    }
 }

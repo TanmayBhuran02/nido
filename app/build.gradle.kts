@@ -63,6 +63,7 @@ dependencies {
     implementation(project(":feature:music"))
     implementation(project(":feature:discover"))
     implementation(project(":feature:clipshare"))
+    implementation(project(":feature:chat"))
     implementation(project(":feature:settings"))
 
     // Compose

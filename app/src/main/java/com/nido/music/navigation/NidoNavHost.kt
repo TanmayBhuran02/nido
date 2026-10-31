@@ -6,6 +6,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.nido.music.feature.clipshare.ui.ClipTrimmerScreen
+import com.nido.music.feature.chat.ui.ConversationsScreen
+import com.nido.music.feature.chat.ui.ChatDetailScreen
 import com.nido.music.feature.discover.ui.DiscoverScreen
 import com.nido.music.feature.music.ui.library.LibraryScreen
 import com.nido.music.feature.music.ui.player.PlayerScreen
@@ -13,8 +15,8 @@ import com.nido.music.feature.settings.ui.SettingsScreen
 
 /**
  * Root navigation graph for Nido.
- * Top-level destinations are library, discover, settings.
- * Nested: player (full-screen), clip trimmer, album/artist detail.
+ * Top-level destinations are library, chat, discover, settings.
+ * Nested: player (full-screen), clip trimmer, album/artist detail, chat detail.
  */
 @Composable
 fun NidoNavHost(
@@ -35,12 +37,30 @@ fun NidoNavHost(
             )
         }
 
+        composable(TopLevelDestination.CHAT.route) {
+            ConversationsScreen(
+                onNavigateToChat = { convId -> navController.navigate("chat/$convId") }
+            )
+        }
+
         composable(TopLevelDestination.DISCOVER.route) {
             DiscoverScreen()
         }
 
         composable(TopLevelDestination.SETTINGS.route) {
             SettingsScreen()
+        }
+
+        // Nested destinations
+        composable("chat/{conversationId}") { backStackEntry ->
+            val conversationId = backStackEntry.arguments?.getString("conversationId") ?: return@composable
+            ChatDetailScreen(
+                conversationId = conversationId,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToClipTrimmer = {
+                    navController.navigate("clip_trimmer/1")
+                }
+            )
         }
 
         // Nested destinations

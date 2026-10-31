@@ -7,6 +7,8 @@ import com.nido.music.core.database.dao.LibraryFolderDao
 import com.nido.music.core.database.dao.PlaylistDao
 import com.nido.music.core.database.dao.QueueDao
 import com.nido.music.core.database.dao.SongDao
+import com.nido.music.core.database.security.DatabaseKeyManager
+import com.nido.music.core.database.security.DatabaseMigrationHelper
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -20,12 +22,31 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): NidoDatabase {
+    fun provideDatabaseKeyManager(@ApplicationContext context: Context): DatabaseKeyManager {
+        return DatabaseKeyManager(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideDatabase(
+        @ApplicationContext context: Context,
+        keyManager: DatabaseKeyManager
+    ): NidoDatabase {
+        val passphrase = keyManager.getOrCreatePassphrase()
+        val factory = DatabaseMigrationHelper.migrateToEncryptedIfNecessary(
+            context = context,
+            plainDbName = NidoDatabase.LEGACY_DATABASE_NAME,
+            encryptedDbName = NidoDatabase.DATABASE_NAME,
+            passphrase = passphrase
+        )
+
         return Room.databaseBuilder(
             context,
             NidoDatabase::class.java,
             NidoDatabase.DATABASE_NAME
-        ).build()
+        )
+            .openHelperFactory(factory)
+            .build()
     }
 
     @Provides

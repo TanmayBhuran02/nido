@@ -1,9 +1,11 @@
 package com.nido.music.navigation
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.Settings
@@ -23,6 +25,12 @@ enum class TopLevelDestination(
         label = "Library",
         selectedIcon = Icons.Filled.LibraryMusic,
         unselectedIcon = Icons.Outlined.LibraryMusic
+    ),
+    CHAT(
+        route = "chat",
+        label = "Chat",
+        selectedIcon = Icons.Filled.ChatBubble,
+        unselectedIcon = Icons.Outlined.ChatBubbleOutline
     ),
     DISCOVER(
         route = "discover",
