@@ -101,16 +101,21 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                     if recipient_id:
                         await manager.send_to_device(recipient_id, recipient_dev, receipt_envelope)
 
+                elif event_type == "privacy_update":
+                    manager.privacy_last_seen[user_id] = event.get("show_last_seen", True)
+
                 elif event_type == "presence_query":
                     target_user = event.get("target_user_id")
-                    is_online = target_user in manager.active_connections
-                    last_seen_val = manager.last_seen.get(target_user)
-                    await websocket.send_text(json.dumps({
-                        "type": "presence_result",
-                        "target_user_id": target_user,
-                        "online": is_online,
-                        "last_seen": last_seen_val
-                    }))
+                    if target_user:
+                        can_see = manager.privacy_last_seen.get(target_user, True)
+                        is_online = (target_user in manager.active_connections) if can_see else False
+                        last_seen_val = manager.last_seen.get(target_user) if can_see else None
+                        await websocket.send_text(json.dumps({
+                            "type": "presence_result",
+                            "target_user_id": target_user,
+                            "online": is_online,
+                            "last_seen": last_seen_val
+                        }))
 
             except Exception as e:
                 logging.error(f"WS message handling error: {e}")

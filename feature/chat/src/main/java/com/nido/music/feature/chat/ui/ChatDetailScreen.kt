@@ -31,6 +31,19 @@ import com.nido.music.feature.chat.data.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+private fun getMessageSnippet(msg: MessageEntity): String {
+    return when (msg.type) {
+        MessageType.TEXT -> msg.content.take(50)
+        MessageType.AUDIO -> "[Audio]"
+        MessageType.LOCATION -> "[Location]"
+        MessageType.STICKER -> "[Sticker]"
+        MessageType.IMAGE -> "[Image]"
+        MessageType.VIDEO -> "[Video]"
+        MessageType.DOC -> "[Document]"
+        MessageType.CLIP -> "[Music Clip]"
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatDetailScreen(
@@ -289,7 +302,7 @@ fun ChatDetailScreen(
                                                     content = inputText,
                                                     status = MessageStatus.SENT,
                                                     replyToId = replyingToMessage?.id,
-                                                    replyToSnippet = replyingToMessage?.content?.take(40)
+                                                    replyToSnippet = replyingToMessage?.let { getMessageSnippet(it) }
                                                 )
                                             )
                                             inputText = ""
@@ -311,7 +324,7 @@ fun ChatDetailScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            items(displayedMessages) { msg ->
+            items(displayedMessages, key = { it.id }) { msg ->
                 val isMe = msg.senderId == "me"
                 MessageBubble(
                     message = msg,
@@ -553,27 +566,48 @@ fun ChatDetailScreen(
 
     // Delete Dialog
     messageToDelete?.let { msg ->
+        val isSenderMe = msg.senderId == "me"
         AlertDialog(
             onDismissRequest = { messageToDelete = null },
             title = { Text("Delete Message") },
-            text = { Text("Do you want to delete this message for yourself or everyone?") },
+            text = {
+                Text(
+                    if (isSenderMe) "Do you want to delete this message for yourself or everyone?"
+                    else "Do you want to delete this message for yourself?"
+                )
+            },
             confirmButton = {
-                Button(onClick = {
-                    val idx = mockMessages.indexOfFirst { it.id == msg.id }
-                    if (idx != -1) {
-                        mockMessages[idx] = msg.copy(isDeleted = true, content = "This message was deleted")
+                if (isSenderMe) {
+                    Button(onClick = {
+                        val idx = mockMessages.indexOfFirst { it.id == msg.id }
+                        if (idx != -1) {
+                            mockMessages[idx] = msg.copy(isDeleted = true, content = "This message was deleted")
+                        }
+                        messageToDelete = null
+                    }) {
+                        Text("Delete for Everyone")
                     }
-                    messageToDelete = null
-                }) {
-                    Text("Delete for Everyone")
+                } else {
+                    Button(onClick = {
+                        mockMessages.removeAll { it.id == msg.id }
+                        messageToDelete = null
+                    }) {
+                        Text("Delete for Me")
+                    }
                 }
             },
             dismissButton = {
-                OutlinedButton(onClick = {
-                    mockMessages.removeAll { it.id == msg.id }
-                    messageToDelete = null
-                }) {
-                    Text("Delete for Me")
+                if (isSenderMe) {
+                    OutlinedButton(onClick = {
+                        mockMessages.removeAll { it.id == msg.id }
+                        messageToDelete = null
+                    }) {
+                        Text("Delete for Me")
+                    }
+                } else {
+                    TextButton(onClick = { messageToDelete = null }) {
+                        Text("Cancel")
+                    }
                 }
             }
         )

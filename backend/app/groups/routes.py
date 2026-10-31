@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Literal
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -33,7 +33,7 @@ class GroupOut(BaseModel):
 
 class AddMemberRequest(BaseModel):
     user_id: str
-    role: str = "MEMBER"
+    role: Literal["ADMIN", "MEMBER"] = "MEMBER"
 
 class SendGroupMessageRequest(BaseModel):
     ciphertext: str = Field(..., max_length=65536)
@@ -55,6 +55,16 @@ async def create_group(
     )
     db.add(group)
 
+    # Deduplicate and exclude creator
+    valid_member_ids = [uid for uid in dict.fromkeys(req.initial_members) if uid != current_user_id]
+    if valid_member_ids:
+        users_stmt = select(User.id).where(User.id.in_(valid_member_ids))
+        users_res = await db.execute(users_stmt)
+        existing_uids = {r[0] for r in users_res.all()}
+        for uid in valid_member_ids:
+            if uid not in existing_uids:
+                raise HTTPException(status_code=400, detail=f"User {uid} not found")
+
     # Add creator as ADMIN
     admin_member = GroupMember(
         id=str(uuid.uuid4()),
@@ -65,14 +75,13 @@ async def create_group(
     db.add(admin_member)
 
     # Add initial members
-    for uid in req.initial_members:
-        if uid != current_user_id:
-            db.add(GroupMember(
-                id=str(uuid.uuid4()),
-                group_id=group.id,
-                user_id=uid,
-                role="MEMBER"
-            ))
+    for uid in valid_member_ids:
+        db.add(GroupMember(
+            id=str(uuid.uuid4()),
+            group_id=group.id,
+            user_id=uid,
+            role="MEMBER"
+        ))
 
     await db.commit()
     await db.refresh(group)
@@ -91,11 +100,41 @@ async def list_user_groups(
     if not group_ids:
         return []
 
-    results = []
-    for gid in group_ids:
-        grp = await get_group_details(gid, current_user_id, db)
-        results.append(grp)
-    return results
+    # Batch query groups
+    groups_stmt = select(Group).where(Group.id.in_(group_ids))
+    groups_res = await db.execute(groups_stmt)
+    groups = groups_res.scalars().all()
+
+    # Batch query members with usernames for all groups
+    members_stmt = (
+        select(GroupMember, User.username)
+        .join(User, GroupMember.user_id == User.id)
+        .where(GroupMember.group_id.in_(group_ids))
+    )
+    members_res = await db.execute(members_stmt)
+    members_by_group: dict[str, list[GroupMemberOut]] = {gid: [] for gid in group_ids}
+    for member, username in members_res.all():
+        if member.group_id in members_by_group:
+            members_by_group[member.group_id].append(
+                GroupMemberOut(
+                    user_id=member.user_id,
+                    username=username,
+                    role=member.role,
+                    joined_at=member.joined_at.isoformat()
+                )
+            )
+
+    return [
+        GroupOut(
+            id=g.id,
+            name=g.name,
+            avatar_url=g.avatar_url,
+            created_by=g.created_by,
+            created_at=g.created_at.isoformat(),
+            members=members_by_group.get(g.id, [])
+        )
+        for g in groups
+    ]
 
 @router.get("/{group_id}", response_model=GroupOut)
 async def get_group_details(
@@ -183,7 +222,7 @@ async def add_group_member(
     # Broadcast membership change notification event to active connections
     for member in (await db.execute(select(GroupMember.user_id).where(GroupMember.group_id == group_id))).all():
         uid = member[0]
-        await manager.send_to_device(uid, 1, {
+        await manager.broadcast_to_user(uid, {
             "type": "group_update",
             "group_id": group_id,
             "action": "member_added",
@@ -215,14 +254,17 @@ async def remove_group_member(
         GroupMember.group_id == group_id,
         GroupMember.user_id == user_id
     )
-    await db.execute(del_stmt)
+    del_res = await db.execute(del_stmt)
+    if del_res.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Member not found in group")
+
     await db.commit()
 
-    # Broadcast member removal so remaining members rotate sender keys
+    # Broadcast member removal to remaining members and removed member
     rem_members = (await db.execute(select(GroupMember.user_id).where(GroupMember.group_id == group_id))).all()
-    for member in rem_members:
-        uid = member[0]
-        await manager.send_to_device(uid, 1, {
+    notify_uids = {member[0] for member in rem_members} | {user_id}
+    for uid in notify_uids:
+        await manager.broadcast_to_user(uid, {
             "type": "group_update",
             "group_id": group_id,
             "action": "member_removed",
@@ -239,6 +281,13 @@ async def send_group_message(
     current_user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
 ):
+    # Validate sender device
+    sender_dev_res = await db.execute(
+        select(Device).where(Device.user_id == current_user_id, Device.device_id == req.sender_device_id)
+    )
+    if not sender_dev_res.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Invalid sender device ID")
+
     # Verify membership
     mem_stmt = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
     mem_res = await db.execute(mem_stmt)
@@ -248,6 +297,7 @@ async def send_group_message(
 
     recipients = [m for m in members if m != current_user_id]
     queued_ids = []
+    pending_dispatches = []
 
     # Fan out to all recipients and their devices
     now = datetime.utcnow()
@@ -270,7 +320,6 @@ async def send_group_message(
             db.add(pending)
             queued_ids.append(pending.id)
 
-            # Live WS delivery
             envelope = {
                 "type": "message",
                 "id": pending.id,
@@ -282,7 +331,11 @@ async def send_group_message(
                 "reply_to_id": req.reply_to_id,
                 "created_at": now.isoformat()
             }
-            await manager.send_to_device(recipient_id, dev_id, envelope)
+            pending_dispatches.append((recipient_id, dev_id, envelope))
 
     await db.commit()
+
+    for recipient_id, dev_id, envelope in pending_dispatches:
+        await manager.send_to_device(recipient_id, dev_id, envelope)
+
     return {"status": "dispatched", "count": len(queued_ids)}

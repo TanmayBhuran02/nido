@@ -110,6 +110,10 @@ fun SettingsScreen(
         isLight -> Color(0xBF0F172A)
         else -> TextSecondary
     }
+    val currentHeaderColor = when {
+        isLight -> Color(0xFFB45309)
+        else -> AmberPrimary
+    }
 
     val settingsBackdrop = rememberLayerBackdrop()
 
@@ -160,6 +164,7 @@ fun SettingsScreen(
                 SettingsGlassGroup(
                     backdrop = settingsBackdrop,
                     title = "Playback",
+                    titleColor = currentHeaderColor,
                     glassCardBg = currentGlassCardBg,
                     edgeSpecular = currentEdgeSpecular
                 ) {
@@ -198,6 +203,7 @@ fun SettingsScreen(
                 SettingsGlassGroup(
                     backdrop = settingsBackdrop,
                     title = "Library & Storage (${folders.size} folders)",
+                    titleColor = currentHeaderColor,
                     glassCardBg = currentGlassCardBg,
                     edgeSpecular = currentEdgeSpecular
                 ) {
@@ -228,6 +234,7 @@ fun SettingsScreen(
                 SettingsGlassGroup(
                     backdrop = settingsBackdrop,
                     title = "Appearance",
+                    titleColor = currentHeaderColor,
                     glassCardBg = currentGlassCardBg,
                     edgeSpecular = currentEdgeSpecular
                 ) {
@@ -247,6 +254,7 @@ fun SettingsScreen(
                 SettingsGlassGroup(
                     backdrop = settingsBackdrop,
                     title = "Privacy & Security (E2EE)",
+                    titleColor = currentHeaderColor,
                     glassCardBg = currentGlassCardBg,
                     edgeSpecular = currentEdgeSpecular
                 ) {
@@ -305,6 +313,7 @@ fun SettingsScreen(
                 SettingsGlassGroup(
                     backdrop = settingsBackdrop,
                     title = "Legal & Compliance",
+                    titleColor = currentHeaderColor,
                     glassCardBg = currentGlassCardBg,
                     edgeSpecular = currentEdgeSpecular
                 ) {
@@ -427,6 +436,7 @@ fun SettingsScreen(
 private fun SettingsGlassGroup(
     backdrop: Backdrop,
     title: String,
+    titleColor: Color = AmberPrimary,
     glassCardBg: Color = GlassCardBg,
     edgeSpecular: Color = EdgeSpecular,
     content: @Composable () -> Unit
@@ -434,7 +444,7 @@ private fun SettingsGlassGroup(
     Column {
         Text(
             text = title,
-            color = AmberPrimary,
+            color = titleColor,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)

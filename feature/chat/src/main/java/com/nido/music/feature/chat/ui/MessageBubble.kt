@@ -149,8 +149,7 @@ fun MessageBubble(
                         }
                         MessageType.STICKER -> {
                             StickerBubbleContent(
-                                contentJson = message.content,
-                                onAddToMyPack = onAddStickerToMyPack
+                                contentJson = message.content
                             )
                         }
                         MessageType.IMAGE -> {
@@ -229,17 +228,26 @@ fun MessageBubble(
                     leadingIcon = { Icon(Icons.Default.Redo, contentDescription = null) },
                     onClick = { showMenu = false; onForward(message) }
                 )
-                DropdownMenuItem(
-                    text = { Text("Copy") },
-                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                    onClick = { showMenu = false; onCopy(message) }
-                )
+                if (message.type == MessageType.TEXT && !message.isDeleted) {
+                    DropdownMenuItem(
+                        text = { Text("Copy") },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                        onClick = { showMenu = false; onCopy(message) }
+                    )
+                }
+                if (message.type == MessageType.STICKER && !message.isDeleted) {
+                    DropdownMenuItem(
+                        text = { Text("Add to my stickers") },
+                        leadingIcon = { Icon(Icons.Default.AddReaction, contentDescription = null) },
+                        onClick = { showMenu = false; onAddStickerToMyPack(message.content) }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(if (message.isStarred) "Unstar" else "Star") },
                     leadingIcon = { Icon(Icons.Default.Star, contentDescription = null) },
                     onClick = { showMenu = false; onStar(message) }
                 )
-                if (isMe && !message.isDeleted && (System.currentTimeMillis() - message.timestamp < 15 * 60 * 1000)) {
+                if (isMe && !message.isDeleted && message.type == MessageType.TEXT && (System.currentTimeMillis() - message.timestamp < 15 * 60 * 1000)) {
                     DropdownMenuItem(
                         text = { Text("Edit") },
                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
@@ -260,9 +268,14 @@ fun MessageBubble(
 fun LocationBubbleContent(contentJson: String) {
     val location = remember(contentJson) {
         try {
-            Json.decodeFromString<LocationPayload>(contentJson)
+            val loc = Json.decodeFromString<LocationPayload>(contentJson)
+            if (loc.latitude < -90.0 || loc.latitude > 90.0 || loc.longitude < -180.0 || loc.longitude > 180.0) {
+                null
+            } else {
+                loc
+            }
         } catch (e: Exception) {
-            LocationPayload(0.0, 0.0, "Pin Location")
+            null
         }
     }
 
@@ -272,35 +285,52 @@ fun LocationBubbleContent(contentJson: String) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.LocationOn,
-                    contentDescription = "Location",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = if (location.isLive) "Live Location (Active)" else (location.name ?: "Pinned Location"),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+            if (location != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.LocationOn,
+                        contentDescription = "Location",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
                     )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = if (location.isLive) "Live Location (Active)" else (location.name ?: "Pinned Location"),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "%.5f, %.5f".format(location.latitude, location.longitude),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { /* Open OSM / MapLibre preview */ },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Open Map Preview", fontSize = 12.sp)
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.LocationOff,
+                        contentDescription = "Invalid Location",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "%.5f, %.5f".format(location.latitude, location.longitude),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Invalid location coordinates",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = { /* Open OSM / MapLibre preview */ },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Open Map Preview", fontSize = 12.sp)
             }
         }
     }
@@ -403,18 +433,10 @@ fun VideoBubbleContent(contentJson: String) {
 
 @Composable
 fun StickerBubbleContent(
-    contentJson: String,
-    onAddToMyPack: (String) -> Unit
+    contentJson: String
 ) {
-    var showStickerOptions by remember { mutableStateOf(false) }
-
     Box(
-        modifier = Modifier
-            .size(140.dp)
-            .combinedClickable(
-                onClick = {},
-                onLongClick = { showStickerOptions = true }
-            ),
+        modifier = Modifier.size(140.dp),
         contentAlignment = Alignment.Center
     ) {
         Surface(
@@ -425,20 +447,6 @@ fun StickerBubbleContent(
             Box(contentAlignment = Alignment.Center) {
                 Text("🎵 Sticker", fontSize = 24.sp)
             }
-        }
-
-        DropdownMenu(
-            expanded = showStickerOptions,
-            onDismissRequest = { showStickerOptions = false }
-        ) {
-            DropdownMenuItem(
-                text = { Text("Add to my stickers") },
-                leadingIcon = { Icon(Icons.Default.AddReaction, contentDescription = null) },
-                onClick = {
-                    showStickerOptions = false
-                    onAddToMyPack(contentJson)
-                }
-            )
         }
     }
 }

@@ -29,6 +29,17 @@ class LrcParserTest {
     }
 
     @Test
+    fun testParseMultiTimestampLine() {
+        val lrc = "[00:10.00][00:25.50] Repeated chorus hook".trimIndent()
+        val parsed = LrcParser.parse(lrc)
+        assertEquals(2, parsed.size)
+        assertEquals(10000L, parsed[0].timestampMs)
+        assertEquals("Repeated chorus hook", parsed[0].text)
+        assertEquals(25500L, parsed[1].timestampMs)
+        assertEquals("Repeated chorus hook", parsed[1].text)
+    }
+
+    @Test
     fun testParseEmptyOrInvalidLines() {
         val lrc = """
             [ti:Song Title]

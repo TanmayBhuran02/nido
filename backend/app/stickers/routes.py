@@ -73,6 +73,8 @@ async def create_sticker_pack(
     stickers_json_str = json.dumps(stickers_data)
 
     if existing:
+        if existing.owner_id and existing.owner_id != current_user_id:
+            raise HTTPException(status_code=403, detail="Not authorized to edit this sticker pack")
         existing.name = req.name
         existing.creator = req.publisher
         existing.animated = req.animated
@@ -80,6 +82,7 @@ async def create_sticker_pack(
     else:
         pack = StickerPack(
             id=req.identifier,
+            owner_id=current_user_id,
             name=req.name,
             creator=req.publisher,
             animated=req.animated,

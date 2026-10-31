@@ -35,8 +35,16 @@ interface ChatDao {
     @Query("DELETE FROM messages WHERE id = :msgId")
     suspend fun deleteForMe(msgId: String)
 
-    @Query("SELECT * FROM messages WHERE conversationId = :convId AND isDeleted = 0 AND content LIKE '%' || :query || '%' ORDER BY timestamp DESC")
-    fun searchMessages(convId: String, query: String): Flow<List<MessageEntity>>
+    @Query("SELECT * FROM messages WHERE conversationId = :convId AND isDeleted = 0 AND content LIKE '%' || :escapedQuery || '%' ESCAPE '\\' ORDER BY timestamp DESC")
+    fun searchMessagesInternal(convId: String, escapedQuery: String): Flow<List<MessageEntity>>
+
+    fun searchMessages(convId: String, query: String): Flow<List<MessageEntity>> {
+        val escaped = query
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        return searchMessagesInternal(convId, escaped)
+    }
 
     @Query("SELECT * FROM messages WHERE conversationId = :convId AND type IN ('IMAGE', 'VIDEO', 'DOC', 'CLIP') AND isDeleted = 0 ORDER BY timestamp DESC")
     fun getMediaGalleryMessages(convId: String): Flow<List<MessageEntity>>
@@ -58,20 +66,4 @@ interface ChatDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertContact(contact: ContactEntity)
-
-    // Stickers
-    @Query("SELECT * FROM sticker_packs")
-    fun getStickerPacks(): Flow<List<StickerPackEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertStickerPack(pack: StickerPackEntity)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertStickers(stickers: List<StickerEntity>)
-
-    @Query("SELECT * FROM stickers WHERE packId = :packId")
-    suspend fun getStickersForPack(packId: String): List<StickerEntity>
-
-    @Query("SELECT * FROM stickers WHERE lastUsedTimestamp > 0 ORDER BY lastUsedTimestamp DESC LIMIT 20")
-    fun getRecentStickers(): Flow<List<StickerEntity>>
 }

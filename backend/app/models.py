@@ -116,6 +116,7 @@ class StickerPack(Base):
     __tablename__ = "sticker_packs"
 
     id = Column(String(64), primary_key=True)
+    owner_id = Column(String(36), nullable=True, index=True)
     name = Column(String(128), nullable=False)
     creator = Column(String(128), default="Nido", nullable=False)
     animated = Column(Boolean, default=False, nullable=False)

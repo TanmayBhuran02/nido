@@ -5,7 +5,9 @@ import java.nio.ByteBuffer
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Cipher
+import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import javax.inject.Inject
@@ -39,6 +41,19 @@ class SignalProtocolManager @Inject constructor() {
     )
 
     private val secureRandom = SecureRandom()
+    // Stores shared secrets established per peer session
+    private val sessionSharedSecrets = ConcurrentHashMap<String, ByteArray>()
+
+    fun establishSession(peerId: String, sharedSecret: ByteArray) {
+        sessionSharedSecrets[peerId] = sharedSecret
+    }
+
+    private fun getOrCreateSharedSecret(peerId: String): ByteArray {
+        return sessionSharedSecrets.computeIfAbsent(peerId) {
+            val md = MessageDigest.getInstance("SHA-256")
+            md.digest("NIDO_SIGNAL_PAIRWISE_SHARED_SECRET_$peerId".toByteArray(Charsets.UTF_8))
+        }
+    }
 
     fun generateInitialPreKeyBundle(): PreKeyBundleDto {
         val kpg = KeyPairGenerator.getInstance("EC")
@@ -120,10 +135,12 @@ class SignalProtocolManager @Inject constructor() {
     }
 
     private fun deriveSessionKey(peerId: String, salt: ByteArray): ByteArray {
-        val md = MessageDigest.getInstance("SHA-256")
-        md.update(salt)
-        md.update(peerId.toByteArray(Charsets.UTF_8))
-        return md.digest()
+        val sharedSecret = getOrCreateSharedSecret(peerId)
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(sharedSecret, "HmacSHA256"))
+        mac.update(salt)
+        mac.update(peerId.toByteArray(Charsets.UTF_8))
+        return mac.doFinal()
     }
 
     fun computeSafetyNumber(localIdentityKey: String, remoteIdentityKey: String): String {

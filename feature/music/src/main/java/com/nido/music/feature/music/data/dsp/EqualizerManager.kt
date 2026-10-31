@@ -33,26 +33,42 @@ class EqualizerManager @Inject constructor() {
         if (audioSessionId == 0) return
         try {
             release()
-            equalizer = Equalizer(0, audioSessionId).apply {
+            val eq = Equalizer(0, audioSessionId).apply {
                 enabled = _isEnabled.value
             }
-            bassBoost = BassBoost(0, audioSessionId).apply {
+            val bb = BassBoost(0, audioSessionId).apply {
                 enabled = _isEnabled.value
             }
 
-            equalizer?.let { eq ->
-                val numPresets = eq.numberOfPresets.toInt()
-                val presetList = (0 until numPresets).map { eq.getPresetName(it.toShort()) }
-                _presets.value = if (presetList.isNotEmpty()) presetList else listOf("Flat", "Rock", "Pop", "Jazz")
+            equalizer = eq
+            bassBoost = bb
 
+            val numPresets = eq.numberOfPresets.toInt()
+            val presetList = if (numPresets > 0) (0 until numPresets).map { eq.getPresetName(it.toShort()) } else emptyList()
+            _presets.value = presetList
+
+            // Restore previous band levels or read current defaults
+            if (_bandLevels.value.isNotEmpty()) {
+                _bandLevels.value.forEach { (band, level) ->
+                    if (band < eq.numberOfBands) {
+                        eq.setBandLevel(band.toShort(), level)
+                    }
+                }
+            } else {
                 val map = mutableMapOf<Int, Short>()
                 for (b in 0 until eq.numberOfBands) {
                     map[b] = eq.getBandLevel(b.toShort())
                 }
                 _bandLevels.value = map
             }
+
+            // Restore previous bass boost strength
+            if (_bassBoostStrength.value > 0) {
+                bb.setStrength(_bassBoostStrength.value)
+            }
         } catch (e: Exception) {
-            // AudioFx might not be supported on all emulators/devices
+            // AudioFx might not be supported on all emulators/devices; release and clear both instances
+            release()
         }
     }
 
@@ -97,6 +113,8 @@ class EqualizerManager @Inject constructor() {
     fun release() {
         try {
             equalizer?.release()
+        } catch (e: Exception) {}
+        try {
             bassBoost?.release()
         } catch (e: Exception) {}
         equalizer = null

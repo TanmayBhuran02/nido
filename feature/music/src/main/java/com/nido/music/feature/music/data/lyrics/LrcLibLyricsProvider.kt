@@ -28,25 +28,27 @@ class LrcLibLyricsProvider @Inject constructor(
                 .header("User-Agent", "NidoMusicPlayer/1.0")
                 .build()
 
-            val response = okHttpClient.newCall(request).execute()
-            if (!response.isSuccessful) return@withContext null
+            val call = okHttpClient.newCall(request)
+            call.execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
 
-            val body = response.body?.string() ?: return@withContext null
-            val json = JSONObject(body)
+                val body = response.body?.string() ?: return@withContext null
+                val json = JSONObject(body)
 
-            val syncedLyrics = json.optString("syncedLyrics", "")
-            if (syncedLyrics.isNotBlank()) {
-                val lines = LrcParser.parse(syncedLyrics)
-                return@withContext LyricsResult(isSynced = true, lines = lines)
+                val syncedLyrics = json.optString("syncedLyrics", "")
+                if (syncedLyrics.isNotBlank()) {
+                    val lines = LrcParser.parse(syncedLyrics)
+                    return@withContext LyricsResult(isSynced = true, lines = lines)
+                }
+
+                val plainLyrics = json.optString("plainLyrics", "")
+                if (plainLyrics.isNotBlank()) {
+                    val lines = plainLyrics.lines().map { LyricsLine(0L, it) }
+                    return@withContext LyricsResult(isSynced = false, lines = lines, plainLyrics = plainLyrics)
+                }
+
+                null
             }
-
-            val plainLyrics = json.optString("plainLyrics", "")
-            if (plainLyrics.isNotBlank()) {
-                val lines = plainLyrics.lines().map { LyricsLine(0L, it) }
-                return@withContext LyricsResult(isSynced = false, lines = lines, plainLyrics = plainLyrics)
-            }
-
-            null
         } catch (e: Exception) {
             null
         }

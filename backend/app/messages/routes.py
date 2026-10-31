@@ -133,20 +133,22 @@ async def edit_message(
     stmt = select(PendingMessage).where(PendingMessage.id == message_id, PendingMessage.sender_user_id == user_id)
     res = await db.execute(stmt)
     msg = res.scalar_one_or_none()
-    if msg:
-        # Time-limited: allow edit within 15 minutes of creation
-        if datetime.utcnow() - msg.created_at > timedelta(minutes=15):
-            raise HTTPException(status_code=400, detail="Edit time window expired")
-        msg.ciphertext = req.ciphertext
-        await db.commit()
+    if not msg or msg.is_deleted:
+        raise HTTPException(status_code=404, detail="Message not found or deleted")
+
+    # Time-limited: allow edit within 15 minutes of creation
+    if datetime.utcnow() - msg.created_at > timedelta(minutes=15):
+        raise HTTPException(status_code=400, detail="Edit time window expired")
+
+    msg.ciphertext = req.ciphertext
+    await db.commit()
 
     # Broadcast edit event via WS
-    if msg:
-        await manager.send_to_device(msg.recipient_user_id, msg.recipient_device_id, {
-            "type": "message_edited",
-            "message_id": message_id,
-            "ciphertext": req.ciphertext
-        })
+    await manager.send_to_device(msg.recipient_user_id, msg.recipient_device_id, {
+        "type": "message_edited",
+        "message_id": message_id,
+        "ciphertext": req.ciphertext
+    })
     return {"status": "edited"}
 
 @router.delete("/{message_id}")
@@ -158,12 +160,14 @@ async def delete_for_everyone(
     stmt = select(PendingMessage).where(PendingMessage.id == message_id, PendingMessage.sender_user_id == user_id)
     res = await db.execute(stmt)
     msg = res.scalar_one_or_none()
-    if msg:
-        msg.is_deleted = True
-        msg.ciphertext = ""
-        await db.commit()
-        await manager.send_to_device(msg.recipient_user_id, msg.recipient_device_id, {
-            "type": "message_deleted",
-            "message_id": message_id
-        })
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    msg.is_deleted = True
+    msg.ciphertext = ""
+    await db.commit()
+    await manager.send_to_device(msg.recipient_user_id, msg.recipient_device_id, {
+        "type": "message_deleted",
+        "message_id": message_id
+    })
     return {"status": "deleted_for_everyone"}

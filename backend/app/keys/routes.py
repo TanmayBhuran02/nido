@@ -96,17 +96,19 @@ async def get_peer_bundle(
     if not spk:
         raise HTTPException(status_code=404, detail="Signed prekey missing")
 
-    stmt = (
-        select(OneTimePreKey)
-        .where(OneTimePreKey.device_id == device.id, OneTimePreKey.consumed == False)
-        .order_by(OneTimePreKey.id.asc())
-        .limit(1)
-    )
-    otpk_res = await db.execute(stmt)
-    otpk = otpk_res.scalar_one_or_none()
-
     otpk_out = None
-    if otpk:
+    while True:
+        stmt = (
+            select(OneTimePreKey)
+            .where(OneTimePreKey.device_id == device.id, OneTimePreKey.consumed == False)
+            .order_by(OneTimePreKey.id.asc())
+            .limit(1)
+        )
+        otpk_res = await db.execute(stmt)
+        otpk = otpk_res.scalar_one_or_none()
+        if not otpk:
+            break
+
         claim_stmt = (
             update(OneTimePreKey)
             .where(OneTimePreKey.id == otpk.id, OneTimePreKey.consumed == False)
@@ -116,6 +118,7 @@ async def get_peer_bundle(
         if claim_res.rowcount == 1:
             await db.commit()
             otpk_out = OneTimePreKeyIn(key_id=otpk.key_id, public_key=otpk.public_key)
+            break
 
     return PeerBundleResponse(
         user_id=peer_user_id,

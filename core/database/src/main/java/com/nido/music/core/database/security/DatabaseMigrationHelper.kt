@@ -8,6 +8,18 @@ import java.io.File
 
 object DatabaseMigrationHelper {
 
+    private fun cleanupPlaintext(plainDbFile: File) {
+        runCatching {
+            if (plainDbFile.exists()) plainDbFile.delete()
+            val wal = File(plainDbFile.path + "-wal")
+            if (wal.exists()) wal.delete()
+            val shm = File(plainDbFile.path + "-shm")
+            if (shm.exists()) shm.delete()
+            val journal = File(plainDbFile.path + "-journal")
+            if (journal.exists()) journal.delete()
+        }
+    }
+
     fun migrateToEncryptedIfNecessary(
         context: Context,
         plainDbName: String,
@@ -21,7 +33,10 @@ object DatabaseMigrationHelper {
         val hexPassphrase = passphrase.joinToString("") { "%02x".format(it) }
         val rawKeySpec = "x'$hexPassphrase'"
 
-        if (plainDbFile.exists() && !encryptedDbFile.exists()) {
+        if (plainDbFile.exists() && encryptedDbFile.exists()) {
+            // Encrypted database already exists, clean up leftover plaintext files safely
+            cleanupPlaintext(plainDbFile)
+        } else if (plainDbFile.exists() && !encryptedDbFile.exists()) {
             val tempEncryptedFile = File(encryptedDbFile.parentFile, "$encryptedDbName.tmp")
             if (tempEncryptedFile.exists()) {
                 tempEncryptedFile.delete()
@@ -37,8 +52,18 @@ object DatabaseMigrationHelper {
                     SQLiteDatabase.OPEN_READWRITE,
                     null
                 )
+                // Read user_version from plaintext database
+                var sourceVersion = 0
+                val versionCursor = plainDb.rawQuery("PRAGMA user_version;", null)
+                if (versionCursor.moveToFirst()) {
+                    sourceVersion = versionCursor.getInt(0)
+                }
+                versionCursor.close()
+
                 plainDb.rawExecSQL("ATTACH DATABASE '${tempEncryptedFile.absolutePath}' AS encrypted KEY \"$rawKeySpec\";")
                 plainDb.rawExecSQL("SELECT sqlcipher_export('encrypted');")
+                // Preserve user_version on encrypted database schema
+                plainDb.rawExecSQL("PRAGMA encrypted.user_version = $sourceVersion;")
                 plainDb.rawExecSQL("DETACH DATABASE encrypted;")
                 exportSuccess = true
             } finally {
@@ -47,10 +72,7 @@ object DatabaseMigrationHelper {
 
             if (exportSuccess && tempEncryptedFile.exists() && tempEncryptedFile.length() > 0) {
                 if (tempEncryptedFile.renameTo(encryptedDbFile)) {
-                    plainDbFile.delete()
-                    File(plainDbFile.path + "-wal").delete()
-                    File(plainDbFile.path + "-shm").delete()
-                    File(plainDbFile.path + "-journal").delete()
+                    cleanupPlaintext(plainDbFile)
                 } else {
                     tempEncryptedFile.delete()
                     error("Failed to promote temporary encrypted database")
