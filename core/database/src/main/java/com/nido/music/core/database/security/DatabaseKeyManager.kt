@@ -33,9 +33,12 @@ class DatabaseKeyManager @Inject constructor(
         SecureRandom().nextBytes(newKey)
         val hexString = bytesToHex(newKey)
 
-        sharedPreferences.edit()
+        val committed = sharedPreferences.edit()
             .putString(KEY_DB_PASSPHRASE, hexString)
-            .apply()
+            .commit()
+        if (!committed) {
+            error("Failed to commit database passphrase to encrypted preferences")
+        }
 
         return newKey
     }

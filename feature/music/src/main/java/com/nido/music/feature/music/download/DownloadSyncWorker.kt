@@ -7,6 +7,9 @@ import com.nido.music.core.network.sync.MusicSyncApi
 import com.nido.music.core.network.sync.SyncedTrackRequest
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
+import retrofit2.HttpException
+import java.io.IOException
 
 @HiltWorker
 class DownloadSyncWorker @AssistedInject constructor(
@@ -31,12 +34,23 @@ class DownloadSyncWorker @AssistedInject constructor(
                 )
             )
             Result.success()
-        } catch (e: Exception) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
             if (runAttemptCount < 5) {
                 Result.retry()
             } else {
                 Result.failure()
             }
+        } catch (e: HttpException) {
+            val code = e.code()
+            if ((code in 500..599 || code == 408 || code == 429) && runAttemptCount < 5) {
+                Result.retry()
+            } else {
+                Result.failure()
+            }
+        } catch (e: Exception) {
+            Result.failure()
         }
     }
 

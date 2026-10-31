@@ -32,6 +32,7 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:network"))
     implementation(project(":core:common"))
+    implementation(libs.retrofit)
 
     // Compose
     val composeBom = platform(libs.compose.bom)

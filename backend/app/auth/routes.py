@@ -79,7 +79,9 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     stmt = select(Device).where(Device.user_id == user.id, Device.device_id == req.device_id)
     dev_res = await db.execute(stmt)
     device = dev_res.scalar_one_or_none()
-    if device and req.fcm_token:
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    if req.fcm_token:
         device.fcm_token = req.fcm_token
         await db.commit()
 

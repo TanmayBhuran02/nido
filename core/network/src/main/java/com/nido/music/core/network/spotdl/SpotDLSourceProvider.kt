@@ -134,17 +134,23 @@ class SpotDLSourceProvider @Inject constructor(
         Result.failure(Exception("Could not connect to spotDL backend on $hosts"))
     }
 
+    private fun buildAudioUrl(file: String): String {
+        val encoded = java.net.URLEncoder.encode(file, "UTF-8")
+        return "${baseUrl}api/download/file?file=$encoded"
+    }
+
     override suspend fun getStreamUrl(trackId: String): Result<String> = withContext(Dispatchers.IO) {
-        Result.success("${baseUrl}api/download/file?file=$trackId")
+        Result.success(buildAudioUrl(trackId))
     }
 
     override suspend fun getDownloadUrl(trackId: String): Result<String> = withContext(Dispatchers.IO) {
-        Result.success("${baseUrl}api/download/url?url=$trackId")
+        Result.success(buildAudioUrl(trackId))
     }
 
     override suspend fun getTrackDetails(trackId: String): Result<TrackDetails> = withContext(Dispatchers.IO) {
         runCatching {
             val song = api.getSongByUrl(url = trackId)
+            val audioUrl = buildAudioUrl(trackId)
             TrackDetails(
                 id = song.songId.ifBlank { trackId },
                 title = song.name,
@@ -154,8 +160,8 @@ class SpotDLSourceProvider @Inject constructor(
                 coverUrl = song.coverUrl,
                 license = "spotDL",
                 provider = name,
-                streamUrl = "${baseUrl}api/download/file?file=$trackId",
-                downloadUrl = "${baseUrl}api/download/url?url=$trackId"
+                streamUrl = audioUrl,
+                downloadUrl = audioUrl
             )
         }
     }

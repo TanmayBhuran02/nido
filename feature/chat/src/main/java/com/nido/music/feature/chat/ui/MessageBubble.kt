@@ -60,7 +60,7 @@ fun MessageBubble(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "10:30",
+                        text = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(message.timestamp)),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )

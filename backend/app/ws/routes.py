@@ -17,11 +17,12 @@ class ConnectionManager:
             self.active_connections[user_id] = {}
         self.active_connections[user_id][device_id] = websocket
 
-    def disconnect(self, user_id: str, device_id: int):
+    def disconnect(self, user_id: str, device_id: int, websocket: WebSocket):
         if user_id in self.active_connections:
-            self.active_connections[user_id].pop(device_id, None)
-            if not self.active_connections[user_id]:
-                self.active_connections.pop(user_id, None)
+            if self.active_connections[user_id].get(device_id) == websocket:
+                self.active_connections[user_id].pop(device_id, None)
+                if not self.active_connections[user_id]:
+                    self.active_connections.pop(user_id, None)
 
     async def send_to_device(self, user_id: str, device_id: int, data: dict) -> bool:
         user_devices = self.active_connections.get(user_id)
@@ -58,8 +59,15 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
                 elif event_type == "receipt":
                     recipient_id = event.get("recipient_user_id")
                     recipient_dev = event.get("recipient_device_id", 1)
-                    await manager.send_to_device(recipient_id, recipient_dev, event)
+                    receipt_envelope = {
+                        "type": "receipt",
+                        "sender_user_id": user_id,
+                        "sender_device_id": device_id,
+                        "message_id": event.get("message_id"),
+                        "status": event.get("status")
+                    }
+                    await manager.send_to_device(recipient_id, recipient_dev, receipt_envelope)
             except Exception as e:
                 logging.error(f"WS message handling error: {e}")
-    except WebSocketDisconnect:
-        manager.disconnect(user_id, device_id)
+    finally:
+        manager.disconnect(user_id, device_id, websocket)

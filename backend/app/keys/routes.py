@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, update, func
 from app.database import get_db
 from app.models import Device, IdentityKey, SignedPreKey, OneTimePreKey
 from app.auth.security import get_current_user_id
@@ -75,6 +75,7 @@ async def upload_keys(
 async def get_peer_bundle(
     peer_user_id: str,
     device_id: int = 1,
+    user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
 ):
     stmt = select(Device).where(Device.user_id == peer_user_id, Device.device_id == device_id)
@@ -106,9 +107,15 @@ async def get_peer_bundle(
 
     otpk_out = None
     if otpk:
-        otpk.consumed = True
-        await db.commit()
-        otpk_out = OneTimePreKeyIn(key_id=otpk.key_id, public_key=otpk.public_key)
+        claim_stmt = (
+            update(OneTimePreKey)
+            .where(OneTimePreKey.id == otpk.id, OneTimePreKey.consumed == False)
+            .values(consumed=True)
+        )
+        claim_res = await db.execute(claim_stmt)
+        if claim_res.rowcount == 1:
+            await db.commit()
+            otpk_out = OneTimePreKeyIn(key_id=otpk.key_id, public_key=otpk.public_key)
 
     return PeerBundleResponse(
         user_id=peer_user_id,

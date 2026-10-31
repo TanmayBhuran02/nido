@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, BigInteger, Text
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, BigInteger, Text, UniqueConstraint
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -19,6 +19,9 @@ class User(Base):
 
 class Device(Base):
     __tablename__ = "devices"
+    __table_args__ = (
+        UniqueConstraint("user_id", "device_id", name="uq_devices_user_device"),
+    )
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -55,6 +58,9 @@ class SignedPreKey(Base):
 
 class OneTimePreKey(Base):
     __tablename__ = "one_time_prekeys"
+    __table_args__ = (
+        UniqueConstraint("device_id", "key_id", name="uq_otpk_device_key"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     device_id = Column(String(36), ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True)

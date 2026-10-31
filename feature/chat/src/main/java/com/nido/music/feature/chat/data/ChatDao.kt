@@ -20,7 +20,7 @@ interface ChatDao {
     @Query("UPDATE messages SET status = :status WHERE id = :msgId")
     suspend fun updateMessageStatus(msgId: String, status: MessageStatus)
 
-    @Query("SELECT * FROM messages WHERE status = 'OUTBOX' ORDER BY timestamp ASC")
+    @Query("SELECT * FROM messages WHERE status IN ('OUTBOX', 'SENDING') ORDER BY timestamp ASC")
     suspend fun getPendingOutboxMessages(): List<MessageEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

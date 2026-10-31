@@ -62,18 +62,11 @@ class SignalProtocolManager @Inject constructor() {
     }
 
     fun encrypt(recipientUserId: String, plaintext: ByteArray): EncryptedEnvelope {
-        // In full flow: process ratchet and output SignalMessage or PreKeySignalMessage
-        val ciphertext = Base64.encodeToString(plaintext, Base64.NO_WRAP)
-        return EncryptedEnvelope(
-            recipientUserId = recipientUserId,
-            recipientDeviceId = 1,
-            ciphertext = ciphertext,
-            messageType = 2
-        )
+        throw UnsupportedOperationException("Signal session encryption not implemented")
     }
 
     fun decrypt(senderUserId: String, ciphertextB64: String): ByteArray {
-        return Base64.decode(ciphertextB64, Base64.NO_WRAP)
+        throw UnsupportedOperationException("Signal session decryption not implemented")
     }
 
     fun computeSafetyNumber(localIdentityKey: String, remoteIdentityKey: String): String {
@@ -87,7 +80,7 @@ class SignalProtocolManager @Inject constructor() {
                     (hash[i * 4 + 1].toInt() and 0xFF shl 16) or
                     (hash[i * 4 + 2].toInt() and 0xFF shl 8) or
                     (hash[i * 4 + 3].toInt() and 0xFF)
-            sb.append(String.format("%05d ", Math.abs(block % 100000)))
+            sb.append(String.format(java.util.Locale.ROOT, "%05d ", Math.abs(block % 100000)))
         }
         return sb.toString().trim()
     }

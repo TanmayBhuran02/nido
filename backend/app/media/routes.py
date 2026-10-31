@@ -54,8 +54,20 @@ async def get_upload_url(
 @router.put("/upload/{blob_id}")
 async def upload_direct_file(
     blob_id: str,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
 ):
+    stmt = select(Blob).where(Blob.id == blob_id)
+    res = await db.execute(stmt)
+    blob = res.scalar_one_or_none()
+    if not blob:
+        raise HTTPException(status_code=404, detail="Upload reservation not found")
+    if blob.owner_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to upload to this blob")
+    if blob.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=410, detail="Upload reservation expired")
+
     target_path = os.path.join(settings.LOCAL_STORAGE_DIR, blob_id)
     with open(target_path, "wb") as f:
         while chunk := await file.read(64 * 1024):

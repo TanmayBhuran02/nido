@@ -1,10 +1,10 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from app.database import get_db
-from app.models import PendingMessage
+from app.models import PendingMessage, User
 from app.auth.security import get_current_user_id
 
 router = APIRouter(prefix="/api/v1/messages", tags=["messages"])
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/v1/messages", tags=["messages"])
 class SendMessageRequest(BaseModel):
     recipient_user_id: str
     recipient_device_id: int = 1
-    ciphertext: str
+    ciphertext: str = Field(..., max_length=65536)
     message_type: int = 1
     sender_device_id: int = 1
 
@@ -30,6 +30,11 @@ async def send_message(
     sender_user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
 ):
+    recipient_stmt = select(User).where(User.id == req.recipient_user_id)
+    recipient_res = await db.execute(recipient_stmt)
+    if not recipient_res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Recipient user not found")
+
     msg = PendingMessage(
         recipient_user_id=req.recipient_user_id,
         recipient_device_id=req.recipient_device_id,
