@@ -59,36 +59,45 @@ class WhatsAppStickerImporter @Inject constructor() {
     fun importFromZip(context: Context, inputStream: InputStream): List<ImportedStickerPack> {
         val tempDir = File(context.cacheDir, "sticker_staging_${System.currentTimeMillis()}")
         tempDir.mkdirs()
+        val canonicalTempDir = tempDir.canonicalFile
+        val canonicalTempPath = canonicalTempDir.path + File.separator
 
         try {
             ZipInputStream(inputStream).use { zis ->
                 var entry = zis.nextEntry
                 while (entry != null) {
                     if (!entry.isDirectory) {
-                        val target = File(tempDir, entry.name)
-                        target.parentFile?.mkdirs()
-                        target.outputStream().use { zis.copyTo(it) }
+                        val target = File(canonicalTempDir, entry.name).canonicalFile
+                        if (target.path.startsWith(canonicalTempPath)) {
+                            target.parentFile?.mkdirs()
+                            target.outputStream().use { zis.copyTo(it) }
+                        }
                     }
                     zis.closeEntry()
                     entry = zis.nextEntry
                 }
             }
 
-            val contentsFile = tempDir.walkTopDown().firstOrNull { it.name.equals("contents.json", ignoreCase = true) }
+            val contentsFile = tempDir.walkTopDown().firstOrNull { it.isFile && it.name.equals("contents.json", ignoreCase = true) }
                 ?: return emptyList()
 
             val manifest = parseContentsJson(contentsFile.readText(Charsets.UTF_8))
             val baseStickersDir = File(context.filesDir, "stickers")
             if (!baseStickersDir.exists()) baseStickersDir.mkdirs()
+            val canonicalBaseDir = baseStickersDir.canonicalFile
+            val canonicalBasePath = canonicalBaseDir.path + File.separator
 
             val results = mutableListOf<ImportedStickerPack>()
 
             for (packJson in manifest.sticker_packs) {
-                val packDir = File(baseStickersDir, packJson.identifier)
+                val packDir = File(canonicalBaseDir, packJson.identifier).canonicalFile
+                if (!packDir.path.startsWith(canonicalBasePath)) {
+                    continue
+                }
                 if (!packDir.exists()) packDir.mkdirs()
 
                 val trayFile = packJson.tray_image_file?.let { name ->
-                    tempDir.walkTopDown().firstOrNull { it.name.equals(name, ignoreCase = true) }?.let { src ->
+                    tempDir.walkTopDown().firstOrNull { it.isFile && it.name.equals(name, ignoreCase = true) }?.let { src ->
                         val dest = File(packDir, src.name)
                         src.copyTo(dest, overwrite = true)
                         dest
@@ -98,8 +107,8 @@ class WhatsAppStickerImporter @Inject constructor() {
                 val stickerEntities = mutableListOf<StickerEntity>()
                 var idx = 0
                 for (sJson in packJson.stickers) {
-                    val src = tempDir.walkTopDown().firstOrNull { it.name.equals(sJson.image_file, ignoreCase = true) }
-                    if (src != null && src.exists()) {
+                    val src = tempDir.walkTopDown().firstOrNull { it.isFile && it.name.equals(sJson.image_file, ignoreCase = true) }
+                    if (src != null) {
                         val dest = File(packDir, src.name)
                         src.copyTo(dest, overwrite = true)
                         stickerEntities.add(

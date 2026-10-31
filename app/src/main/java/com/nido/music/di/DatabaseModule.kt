@@ -46,6 +46,7 @@ object DatabaseModule {
             NidoDatabase.DATABASE_NAME
         )
             .openHelperFactory(factory)
+            .fallbackToDestructiveMigration()
             .build()
     }
 

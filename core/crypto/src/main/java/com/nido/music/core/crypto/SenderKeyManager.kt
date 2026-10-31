@@ -119,6 +119,9 @@ class SenderKeyManager @Inject constructor() {
         val state = keyStore[keyId] ?: throw IllegalStateException("Sender key not found for $groupId:$myUserId")
 
         return synchronized(state) {
+            val signingKey = state.signingPrivateKey
+                ?: throw IllegalStateException("Private signing key not available for $myUserId")
+
             val currentIteration = state.iteration
             val messageKey = deriveMessageKey(state.chainKey, currentIteration)
             val iv = ByteArray(12).also { secureRandom.nextBytes(it) }
@@ -132,17 +135,15 @@ class SenderKeyManager @Inject constructor() {
             buffer.put(encrypted)
             val ciphertextB64 = Base64.getEncoder().encodeToString(buffer.array())
 
-            // Ratchet chainKey forward
-            state.chainKey = ratchetChainKey(state.chainKey)
-            state.iteration += 1
-
-            val signingKey = state.signingPrivateKey
-                ?: throw IllegalStateException("Private signing key not available for $myUserId")
             val dataToSign = "$groupId:$myUserId:$currentIteration:$ciphertextB64".toByteArray(Charsets.UTF_8)
             val signer = Signature.getInstance("SHA256withECDSA")
             signer.initSign(signingKey)
             signer.update(dataToSign)
             val signatureB64 = Base64.getEncoder().encodeToString(signer.sign())
+
+            // Ratchet chainKey forward only after signing succeeds
+            state.chainKey = ratchetChainKey(state.chainKey)
+            state.iteration += 1
 
             GroupEncryptedEnvelope(
                 groupId = groupId,

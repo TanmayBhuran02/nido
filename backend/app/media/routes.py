@@ -69,18 +69,20 @@ async def upload_direct_file(
         raise HTTPException(status_code=410, detail="Upload reservation expired")
 
     target_path = os.path.join(settings.LOCAL_STORAGE_DIR, blob_id)
+    temp_path = f"{target_path}.tmp.{uuid.uuid4().hex}"
     bytes_written = 0
     try:
-        with open(target_path, "wb") as f:
+        with open(temp_path, "wb") as f:
             while chunk := await file.read(64 * 1024):
                 bytes_written += len(chunk)
                 if bytes_written > blob.size_bytes:
                     raise HTTPException(status_code=413, detail="File exceeds reserved size")
                 f.write(chunk)
+        os.replace(temp_path, target_path)
     except Exception:
-        if os.path.exists(target_path):
+        if os.path.exists(temp_path):
             try:
-                os.remove(target_path)
+                os.remove(temp_path)
             except OSError:
                 pass
         raise

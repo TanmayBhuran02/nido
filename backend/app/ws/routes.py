@@ -1,9 +1,11 @@
 import json
 import logging
+import os
 from typing import Dict, Optional
 from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.auth.security import decode_token
+from app.config import settings
 
 router = APIRouter(tags=["websocket"])
 
@@ -13,8 +15,26 @@ class ConnectionManager:
         self.active_connections: Dict[str, Dict[int, WebSocket]] = {}
         # Maps user_id -> last_seen timestamp ISO string
         self.last_seen: Dict[str, str] = {}
+        self.privacy_file = os.path.join(settings.LOCAL_STORAGE_DIR, "privacy_last_seen.json")
         # Maps user_id -> bool (privacy toggle: show last seen)
-        self.privacy_last_seen: Dict[str, bool] = {}
+        self.privacy_last_seen: Dict[str, bool] = self.load_privacy()
+
+    def load_privacy(self) -> Dict[str, bool]:
+        if os.path.exists(self.privacy_file):
+            try:
+                with open(self.privacy_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logging.error(f"Failed to load privacy file: {e}")
+        return {}
+
+    def save_privacy(self):
+        try:
+            os.makedirs(os.path.dirname(self.privacy_file), exist_ok=True)
+            with open(self.privacy_file, "w", encoding="utf-8") as f:
+                json.dump(self.privacy_last_seen, f)
+        except Exception as e:
+            logging.error(f"Failed to save privacy file: {e}")
 
     async def connect(self, user_id: str, device_id: int, websocket: WebSocket):
         await websocket.accept()
@@ -103,11 +123,13 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
 
                 elif event_type == "privacy_update":
                     manager.privacy_last_seen[user_id] = event.get("show_last_seen", True)
+                    manager.save_privacy()
 
                 elif event_type == "presence_query":
                     target_user = event.get("target_user_id")
                     if target_user:
-                        can_see = manager.privacy_last_seen.get(target_user, True)
+                        manager.privacy_last_seen = manager.load_privacy()
+                        can_see = manager.privacy_last_seen.get(target_user, False)
                         is_online = (target_user in manager.active_connections) if can_see else False
                         last_seen_val = manager.last_seen.get(target_user) if can_see else None
                         await websocket.send_text(json.dumps({

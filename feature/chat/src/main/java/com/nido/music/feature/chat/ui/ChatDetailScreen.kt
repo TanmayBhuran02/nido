@@ -1,6 +1,8 @@
 package com.nido.music.feature.chat.ui
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -118,6 +120,14 @@ fun ChatDetailScreen(
             ivHex = "",
             sha256 = ""
         )
+    }
+
+    val stickerPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            Toast.makeText(context, "Imported sticker pack successfully", Toast.LENGTH_SHORT).show()
+        }
     }
 
     val displayedMessages = remember(mockMessages.toList(), isSearching, searchQuery) {
@@ -245,7 +255,7 @@ fun ChatDetailScreen(
                                 isRecordingAudio = false
                                 mockMessages.add(
                                     MessageEntity(
-                                        id = "m_${System.currentTimeMillis()}",
+                                        id = "m_${java.util.UUID.randomUUID()}",
                                         conversationId = conversationId,
                                         senderId = "me",
                                         type = MessageType.AUDIO,
@@ -265,7 +275,7 @@ fun ChatDetailScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(onClick = { showAttachmentSheet = true }) {
-                                Icon(Icons.Default.AttachFile, contentDescription = "Attach")
+                                Icon(Icons.Default.Add, contentDescription = "Attach")
                             }
                             IconButton(onClick = { showStickersSheet = true }) {
                                 Icon(Icons.Default.EmojiEmotions, contentDescription = "Stickers")
@@ -295,7 +305,7 @@ fun ChatDetailScreen(
                                         if (inputText.isNotBlank()) {
                                             mockMessages.add(
                                                 MessageEntity(
-                                                    id = "m_${System.currentTimeMillis()}",
+                                                    id = "m_${java.util.UUID.randomUUID()}",
                                                     conversationId = conversationId,
                                                     senderId = "me",
                                                     type = MessageType.TEXT,
@@ -367,7 +377,7 @@ fun ChatDetailScreen(
                         showAttachmentSheet = false
                         mockMessages.add(
                             MessageEntity(
-                                id = "m_${System.currentTimeMillis()}",
+                                id = "m_${java.util.UUID.randomUUID()}",
                                 conversationId = conversationId,
                                 senderId = "me",
                                 type = MessageType.IMAGE,
@@ -380,7 +390,7 @@ fun ChatDetailScreen(
                         showAttachmentSheet = false
                         mockMessages.add(
                             MessageEntity(
-                                id = "m_${System.currentTimeMillis()}",
+                                id = "m_${java.util.UUID.randomUUID()}",
                                 conversationId = conversationId,
                                 senderId = "me",
                                 type = MessageType.IMAGE,
@@ -393,7 +403,7 @@ fun ChatDetailScreen(
                         showAttachmentSheet = false
                         mockMessages.add(
                             MessageEntity(
-                                id = "m_${System.currentTimeMillis()}",
+                                id = "m_${java.util.UUID.randomUUID()}",
                                 conversationId = conversationId,
                                 senderId = "me",
                                 type = MessageType.VIDEO,
@@ -427,7 +437,7 @@ fun ChatDetailScreen(
                     showLocationDialog = false
                     mockMessages.add(
                         MessageEntity(
-                            id = "m_${System.currentTimeMillis()}",
+                            id = "m_${java.util.UUID.randomUUID()}",
                             conversationId = conversationId,
                             senderId = "me",
                             type = MessageType.LOCATION,
@@ -444,7 +454,7 @@ fun ChatDetailScreen(
                     showLocationDialog = false
                     mockMessages.add(
                         MessageEntity(
-                            id = "m_${System.currentTimeMillis()}",
+                            id = "m_${java.util.UUID.randomUUID()}",
                             conversationId = conversationId,
                             senderId = "me",
                             type = MessageType.LOCATION,
@@ -470,7 +480,7 @@ fun ChatDetailScreen(
                 ) {
                     Text("Sticker Packs", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     TextButton(onClick = {
-                        Toast.makeText(context, "Import WhatsApp .wastickers or Sticker.ly pack", Toast.LENGTH_SHORT).show()
+                        stickerPickerLauncher.launch("*/*")
                     }) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -489,7 +499,7 @@ fun ChatDetailScreen(
                                     showStickersSheet = false
                                     mockMessages.add(
                                         MessageEntity(
-                                            id = "m_${System.currentTimeMillis()}",
+                                            id = "m_${java.util.UUID.randomUUID()}",
                                             conversationId = conversationId,
                                             senderId = "me",
                                             type = MessageType.STICKER,

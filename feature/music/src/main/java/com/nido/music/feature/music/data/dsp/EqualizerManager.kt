@@ -49,8 +49,11 @@ class EqualizerManager @Inject constructor() {
 
             // Restore previous band levels or read current defaults
             if (_bandLevels.value.isNotEmpty()) {
+                val range = eq.bandLevelRange
+                val minLevel = range?.getOrNull(0) ?: Short.MIN_VALUE
+                val maxLevel = range?.getOrNull(1) ?: Short.MAX_VALUE
                 _bandLevels.value.forEach { (band, level) ->
-                    if (band < eq.numberOfBands) {
+                    if (band in 0 until eq.numberOfBands && level in minLevel..maxLevel) {
                         eq.setBandLevel(band.toShort(), level)
                     }
                 }

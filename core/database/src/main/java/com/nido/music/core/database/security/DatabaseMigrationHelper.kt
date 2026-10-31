@@ -32,10 +32,50 @@ object DatabaseMigrationHelper {
 
         val hexPassphrase = passphrase.joinToString("") { "%02x".format(it) }
         val rawKeySpec = "x'$hexPassphrase'"
+        val keyBytes = rawKeySpec.toByteArray(Charsets.US_ASCII)
+
+        if (encryptedDbFile.exists()) {
+            val isReadable = runCatching {
+                val db = SQLiteDatabase.openDatabase(
+                    encryptedDbFile.absolutePath,
+                    keyBytes,
+                    null,
+                    SQLiteDatabase.OPEN_READWRITE,
+                    null
+                )
+                val cursor = db.rawQuery("SELECT count(*) FROM sqlite_master;", null)
+                cursor.moveToFirst()
+                cursor.close()
+                db.close()
+                true
+            }.getOrDefault(false)
+
+            if (!isReadable) {
+                cleanupPlaintext(encryptedDbFile)
+            }
+        }
 
         if (plainDbFile.exists() && encryptedDbFile.exists()) {
-            // Encrypted database already exists, clean up leftover plaintext files safely
-            cleanupPlaintext(plainDbFile)
+            val isEncryptedValid = runCatching {
+                val db = SQLiteDatabase.openDatabase(
+                    encryptedDbFile.absolutePath,
+                    keyBytes,
+                    null,
+                    SQLiteDatabase.OPEN_READWRITE,
+                    null
+                )
+                val cursor = db.rawQuery("SELECT count(*) FROM sqlite_master;", null)
+                val hasExpectedContents = cursor.moveToFirst() && cursor.getInt(0) > 0
+                cursor.close()
+                db.close()
+                hasExpectedContents
+            }.getOrDefault(false)
+
+            if (isEncryptedValid) {
+                cleanupPlaintext(plainDbFile)
+            } else {
+                error("Encrypted database validation failed; retaining plaintext database")
+            }
         } else if (plainDbFile.exists() && !encryptedDbFile.exists()) {
             val tempEncryptedFile = File(encryptedDbFile.parentFile, "$encryptedDbName.tmp")
             if (tempEncryptedFile.exists()) {
@@ -83,6 +123,6 @@ object DatabaseMigrationHelper {
             }
         }
 
-        return SupportOpenHelperFactory(rawKeySpec.toByteArray(Charsets.US_ASCII))
+        return SupportOpenHelperFactory(keyBytes)
     }
 }

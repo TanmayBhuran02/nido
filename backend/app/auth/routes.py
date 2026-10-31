@@ -110,3 +110,26 @@ async def refresh(req: RefreshRequest):
         "refresh_token": create_refresh_token(new_token_data),
         "token_type": "bearer"
     }
+
+class ContactLookupRequest(BaseModel):
+    phone_numbers: list[str]
+
+class RegisteredContact(BaseModel):
+    phone: str
+    username: str
+    user_id: str
+
+@router.post("/contacts/lookup", response_model=list[RegisteredContact])
+async def lookup_contacts(req: ContactLookupRequest, db: AsyncSession = Depends(get_db)):
+    clean_phones = [p.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "") for p in req.phone_numbers if p.strip()]
+    if not clean_phones:
+        return []
+    
+    stmt = select(User).where(User.phone.in_(clean_phones))
+    res = await db.execute(stmt)
+    users = res.scalars().all()
+    
+    return [
+        RegisteredContact(phone=u.phone or "", username=u.username, user_id=str(u.id))
+        for u in users
+    ]
