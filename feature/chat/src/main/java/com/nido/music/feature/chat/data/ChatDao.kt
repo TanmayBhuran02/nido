@@ -8,6 +8,9 @@ interface ChatDao {
     @Query("SELECT * FROM conversations ORDER BY lastMessageTimestamp DESC")
     fun getConversations(): Flow<List<ConversationEntity>>
 
+    @Query("SELECT * FROM conversations WHERE id = :id")
+    suspend fun getConversation(id: String): ConversationEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertConversation(conversation: ConversationEntity)
 
@@ -19,6 +22,27 @@ interface ChatDao {
 
     @Query("UPDATE messages SET status = :status WHERE id = :msgId")
     suspend fun updateMessageStatus(msgId: String, status: MessageStatus)
+
+    @Query("UPDATE messages SET content = :newContent, isEdited = 1 WHERE id = :msgId")
+    suspend fun editMessage(msgId: String, newContent: String)
+
+    @Query("UPDATE messages SET isStarred = :isStarred WHERE id = :msgId")
+    suspend fun updateStarred(msgId: String, isStarred: Boolean)
+
+    @Query("UPDATE messages SET isDeleted = 1, content = 'This message was deleted' WHERE id = :msgId")
+    suspend fun deleteForEveryone(msgId: String)
+
+    @Query("DELETE FROM messages WHERE id = :msgId")
+    suspend fun deleteForMe(msgId: String)
+
+    @Query("SELECT * FROM messages WHERE conversationId = :convId AND isDeleted = 0 AND content LIKE '%' || :query || '%' ORDER BY timestamp DESC")
+    fun searchMessages(convId: String, query: String): Flow<List<MessageEntity>>
+
+    @Query("SELECT * FROM messages WHERE conversationId = :convId AND type IN ('IMAGE', 'VIDEO', 'DOC', 'CLIP') AND isDeleted = 0 ORDER BY timestamp DESC")
+    fun getMediaGalleryMessages(convId: String): Flow<List<MessageEntity>>
+
+    @Query("SELECT * FROM messages WHERE isStarred = 1 AND isDeleted = 0 ORDER BY timestamp DESC")
+    fun getStarredMessages(): Flow<List<MessageEntity>>
 
     @Query("SELECT * FROM messages WHERE status IN ('OUTBOX', 'SENDING') ORDER BY timestamp ASC")
     suspend fun getPendingOutboxMessages(): List<MessageEntity>
@@ -34,4 +58,20 @@ interface ChatDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertContact(contact: ContactEntity)
+
+    // Stickers
+    @Query("SELECT * FROM sticker_packs")
+    fun getStickerPacks(): Flow<List<StickerPackEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStickerPack(pack: StickerPackEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStickers(stickers: List<StickerEntity>)
+
+    @Query("SELECT * FROM stickers WHERE packId = :packId")
+    suspend fun getStickersForPack(packId: String): List<StickerEntity>
+
+    @Query("SELECT * FROM stickers WHERE lastUsedTimestamp > 0 ORDER BY lastUsedTimestamp DESC LIMIT 20")
+    fun getRecentStickers(): Flow<List<StickerEntity>>
 }

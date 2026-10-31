@@ -82,6 +82,11 @@ dependencies {
     // DataStore
     implementation(libs.datastore.preferences)
 
+    // Palette
+    implementation("androidx.palette:palette-ktx:1.0.0")
+
     // Backdrop (Liquid Glass)
     implementation(libs.backdrop)
+
+    testImplementation("junit:junit:4.13.2")
 }

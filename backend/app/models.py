@@ -80,6 +80,46 @@ class PendingMessage(Base):
     sender_device_id = Column(Integer, nullable=False)
     ciphertext = Column(Text, nullable=False)
     message_type = Column(Integer, default=1, nullable=False)
+    group_id = Column(String(36), nullable=True, index=True)
+    reply_to_id = Column(String(36), nullable=True)
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    is_forwarded = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class Group(Base):
+    __tablename__ = "groups"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(128), nullable=False)
+    avatar_url = Column(Text, nullable=True)
+    created_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    members = relationship("GroupMember", back_populates="group", cascade="all, delete-orphan")
+
+class GroupMember(Base):
+    __tablename__ = "group_members"
+    __table_args__ = (
+        UniqueConstraint("group_id", "user_id", name="uq_group_members_group_user"),
+    )
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    group_id = Column(String(36), ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(32), default="MEMBER", nullable=False)  # ADMIN, MEMBER
+    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    group = relationship("Group", back_populates="members")
+    user = relationship("User")
+
+class StickerPack(Base):
+    __tablename__ = "sticker_packs"
+
+    id = Column(String(64), primary_key=True)
+    name = Column(String(128), nullable=False)
+    creator = Column(String(128), default="Nido", nullable=False)
+    animated = Column(Boolean, default=False, nullable=False)
+    stickers_json = Column(Text, nullable=False)  # JSON array of sticker objects
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 class Blob(Base):

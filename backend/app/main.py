@@ -8,6 +8,8 @@ from app.messages.routes import router as messages_router
 from app.media.routes import router as media_router
 from app.sync.routes import router as sync_router
 from app.ws.routes import router as ws_router
+from app.groups.routes import router as groups_router
+from app.stickers.routes import router as stickers_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,6 +41,8 @@ app.include_router(messages_router)
 app.include_router(media_router)
 app.include_router(sync_router)
 app.include_router(ws_router)
+app.include_router(groups_router)
+app.include_router(stickers_router)
 
 @app.get("/")
 async def root():

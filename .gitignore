@@ -12,3 +12,8 @@ captures
 *.apk
 *.aab
 nido_launch.png
+*.db
+__pycache__/
+*.pyc
+.venv/
+backend/media_storage/

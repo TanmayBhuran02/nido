@@ -40,3 +40,18 @@
 # OkHttp
 -dontwarn okhttp3.**
 -dontwarn okio.**
+
+# Signal Protocol & LibSignal
+-keep class org.whispersystems.** { *; }
+-dontwarn org.whispersystems.**
+-keep class org.signal.** { *; }
+-dontwarn org.signal.**
+
+# SQLCipher
+-keep class net.sqlcipher.** { *; }
+-keep class net.sqlcipher.database.** { *; }
+-dontwarn net.sqlcipher.**
+
+# Androidx Security Crypto
+-keep class androidx.security.crypto.** { *; }
+-dontwarn androidx.security.crypto.**

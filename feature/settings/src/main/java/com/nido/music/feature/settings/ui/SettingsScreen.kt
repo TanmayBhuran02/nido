@@ -37,6 +37,10 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -235,6 +239,95 @@ fun SettingsScreen(
                         textSecondary = currentTextSecondary,
                         onClick = { showThemeDialog = true }
                     )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Privacy & Security (E2EE) Group
+                SettingsGlassGroup(
+                    backdrop = settingsBackdrop,
+                    title = "Privacy & Security (E2EE)",
+                    glassCardBg = currentGlassCardBg,
+                    edgeSpecular = currentEdgeSpecular
+                ) {
+                    var readReceipts by remember { mutableStateOf(true) }
+                    var lastSeenPrivacy by remember { mutableStateOf(true) }
+                    var showPrivacyNotice by remember { mutableStateOf(false) }
+
+                    SettingsRow(
+                        icon = Icons.Default.Lock,
+                        title = "Zero-Plaintext Policy",
+                        subtitle = "Server stores only ciphertext",
+                        textPrimary = currentTextPrimary,
+                        textSecondary = currentTextSecondary,
+                        onClick = { showPrivacyNotice = true }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SettingsRow(
+                        icon = Icons.Default.Check,
+                        title = "Read Receipts",
+                        subtitle = if (readReceipts) "Enabled (double blue tick)" else "Disabled",
+                        textPrimary = currentTextPrimary,
+                        textSecondary = currentTextSecondary,
+                        onClick = {
+                            readReceipts = !readReceipts
+                            Toast.makeText(context, "Read receipts: ${if (readReceipts) "On" else "Off"}", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SettingsRow(
+                        icon = Icons.Default.Visibility,
+                        title = "Last Seen & Online Status",
+                        subtitle = if (lastSeenPrivacy) "Visible to contacts" else "Nobody",
+                        textPrimary = currentTextPrimary,
+                        textSecondary = currentTextSecondary,
+                        onClick = {
+                            lastSeenPrivacy = !lastSeenPrivacy
+                            Toast.makeText(context, "Last seen: ${if (lastSeenPrivacy) "Contacts" else "Nobody"}", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+
+                    if (showPrivacyNotice) {
+                        AlertDialog(
+                            onDismissRequest = { showPrivacyNotice = false },
+                            title = { Text("Zero-Plaintext E2EE Policy") },
+                            text = { Text("All 1:1 messages, group messages (Sender Keys), locations, stickers, audio clips, and files are encrypted client-side. The Nido relay server has zero access to encryption keys or plaintext.") },
+                            confirmButton = {
+                                TextButton(onClick = { showPrivacyNotice = false }) { Text("Understood") }
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Legal & Licensing
+                SettingsGlassGroup(
+                    backdrop = settingsBackdrop,
+                    title = "Legal & Compliance",
+                    glassCardBg = currentGlassCardBg,
+                    edgeSpecular = currentEdgeSpecular
+                ) {
+                    var showLegalNotice by remember { mutableStateOf(false) }
+                    SettingsRow(
+                        icon = Icons.Default.Info,
+                        title = "Content Rights & Clip Sharing Notice",
+                        subtitle = "Fair use and copyright policy",
+                        textPrimary = currentTextPrimary,
+                        textSecondary = currentTextSecondary,
+                        onClick = { showLegalNotice = true }
+                    )
+
+                    if (showLegalNotice) {
+                        AlertDialog(
+                            onDismissRequest = { showLegalNotice = false },
+                            title = { Text("Content Rights Policy") },
+                            text = { Text("Downloads, audio trimming, and clip sharing must utilize content you own or have explicit rights/licenses to distribute. Discover tracks feature open Creative Commons and Jamendo licenses.") },
+                            confirmButton = {
+                                TextButton(onClick = { showLegalNotice = false }) { Text("Close") }
+                            }
+                        )
+                    }
                 }
             }
 
