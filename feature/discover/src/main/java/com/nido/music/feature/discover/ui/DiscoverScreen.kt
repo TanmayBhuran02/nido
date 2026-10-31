@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
@@ -78,6 +79,8 @@ fun DiscoverScreen(
     val results by viewModel.results.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val playingTrackId by viewModel.playingTrackId.collectAsState()
+    val downloadingTrackIds by viewModel.downloadingTrackIds.collectAsState()
+    val downloadSuccessTrackIds by viewModel.downloadSuccessTrackIds.collectAsState()
 
     val discoverBackdrop = rememberLayerBackdrop()
 
@@ -230,10 +233,15 @@ fun DiscoverScreen(
                     ) {
                         items(results, key = { it.id }) { track ->
                             val isPreviewPlaying = playingTrackId == track.id
+                            val isDownloading = downloadingTrackIds.contains(track.id)
+                            val isDownloaded = downloadSuccessTrackIds.contains(track.id)
                             DiscoverTrackRow(
                                 track = track,
                                 isPlaying = isPreviewPlaying,
-                                onTogglePreview = { viewModel.togglePreview(track) }
+                                isDownloading = isDownloading,
+                                isDownloaded = isDownloaded,
+                                onTogglePreview = { viewModel.togglePreview(track) },
+                                onDownload = { viewModel.downloadTrack(track) }
                             )
                         }
                     }
@@ -273,7 +281,10 @@ fun DiscoverScreen(
 private fun DiscoverTrackRow(
     track: SearchResult,
     isPlaying: Boolean,
-    onTogglePreview: () -> Unit
+    isDownloading: Boolean = false,
+    isDownloaded: Boolean = false,
+    onTogglePreview: () -> Unit,
+    onDownload: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -329,7 +340,33 @@ private fun DiscoverTrackRow(
                 fontWeight = FontWeight.Bold
             )
         }
-        Spacer(modifier = Modifier.size(6.dp))
+        Spacer(modifier = Modifier.size(4.dp))
+        IconButton(
+            onClick = onDownload,
+            enabled = !isDownloading && !isDownloaded
+        ) {
+            if (isDownloading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = AmberPrimary
+                )
+            } else if (isDownloaded) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Downloaded",
+                    tint = AmberPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.CloudDownload,
+                    contentDescription = "Download",
+                    tint = AmberPrimary.copy(alpha = 0.8f),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
         IconButton(onClick = onTogglePreview) {
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,

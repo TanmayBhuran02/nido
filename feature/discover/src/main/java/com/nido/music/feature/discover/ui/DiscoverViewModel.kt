@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import com.nido.music.core.network.MusicSourceProvider
+import com.nido.music.core.network.downloader.MusicDownloader
 import com.nido.music.core.network.model.SearchResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -18,7 +19,8 @@ import javax.inject.Inject
 @HiltViewModel
 class DiscoverViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val musicSourceProvider: MusicSourceProvider
+    private val musicSourceProvider: MusicSourceProvider,
+    private val musicDownloader: MusicDownloader
 ) : ViewModel() {
 
     val searchQuery = MutableStateFlow("")
@@ -31,6 +33,12 @@ class DiscoverViewModel @Inject constructor(
 
     private val _playingTrackId = MutableStateFlow<String?>(null)
     val playingTrackId: StateFlow<String?> = _playingTrackId.asStateFlow()
+
+    private val _downloadingTrackIds = MutableStateFlow<Set<String>>(emptySet())
+    val downloadingTrackIds: StateFlow<Set<String>> = _downloadingTrackIds.asStateFlow()
+
+    private val _downloadSuccessTrackIds = MutableStateFlow<Set<String>>(emptySet())
+    val downloadSuccessTrackIds: StateFlow<Set<String>> = _downloadSuccessTrackIds.asStateFlow()
 
     private val previewPlayer: ExoPlayer by lazy {
         ExoPlayer.Builder(context).build()
@@ -48,6 +56,23 @@ class DiscoverViewModel @Inject constructor(
                     _results.value = emptyList()
                 }
             _isLoading.value = false
+        }
+    }
+
+    fun downloadTrack(track: SearchResult) {
+        viewModelScope.launch {
+            _downloadingTrackIds.value = _downloadingTrackIds.value + track.id
+            musicSourceProvider.getDownloadUrl(track.id)
+                .onSuccess { url ->
+                    musicDownloader.downloadSong(
+                        downloadUrl = url,
+                        title = track.title,
+                        artist = track.artist
+                    ).onSuccess {
+                        _downloadSuccessTrackIds.value = _downloadSuccessTrackIds.value + track.id
+                    }
+                }
+            _downloadingTrackIds.value = _downloadingTrackIds.value - track.id
         }
     }
 
