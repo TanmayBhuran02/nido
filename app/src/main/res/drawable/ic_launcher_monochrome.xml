@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <group
+        android:pivotX="256"
+        android:pivotY="256"
+        android:scaleX="0.80"
+        android:scaleY="0.80">
+
+        <!-- Outer Calibration Guide Ring -->
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2"
+            android:strokeAlpha="0.25"
+            android:pathData="M 52,256 a 204,204 0 1,0 408,0 a 204,204 0 1,0 -408,0" />
+
+        <!-- Sanctuary Disc -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 80,256 a 176,176 0 1,0 352,0 a 176,176 0 1,0 -352,0" />
+
+        <!-- Negative space cutouts in transparent/black -->
+        <path
+            android:fillColor="#000000"
+            android:pathData="M 292,118 C 304,118 368,126 392,178 C 352,172 322,182 306,206 L 306,284 C 306,285 306,286 306,288 C 306,324.45 274.55,354 236,354 C 197.45,354 166,324.45 166,288 C 166,251.55 197.45,222 236,222 C 253.2,222 268.9,227.8 281.5,237.5 L 281.5,136 C 281.5,126.06 286.2,118 292,118 Z" />
+
+        <path
+            android:fillColor="#000000"
+            android:pathData="M 244,146 C 214,164 192,194 182,228 C 194,212 214,198 238,190 C 264,182 278,174 282,164 C 274,152 260,146 244,146 Z" />
+
+        <path
+            android:fillColor="#000000"
+            android:pathData="M 124,280 C 138,364 210,404 256,404 C 302,404 374,364 388,280 C 374,344 312,384 256,384 C 200,384 138,344 124,280 Z" />
+
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 208,288 a 28,28 0 1,0 56,0 a 28,28 0 1,0 -56,0" />
+    </group>
+</vector>
