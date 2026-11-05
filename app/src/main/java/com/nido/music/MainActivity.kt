@@ -1,9 +1,18 @@
 package com.nido.music
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.nido.music.feature.music.data.scanner.ScanWorker
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.slideInVertically
@@ -80,6 +89,30 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        val permissionsToRequest = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.READ_MEDIA_AUDIO)
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+        }.toTypedArray()
+
+        val requestPermissionLauncher = registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { _ ->
+            triggerMediaScan()
+        }
+
+        val allGranted = permissionsToRequest.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
+        if (allGranted) {
+            triggerMediaScan()
+        } else {
+            requestPermissionLauncher.launch(permissionsToRequest)
+        }
+
         setContent {
             val themeMode by themeManager.themeMode.collectAsState()
             val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
@@ -103,7 +136,17 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun triggerMediaScan() {
+        val work = OneTimeWorkRequestBuilder<ScanWorker>().build()
+        WorkManager.getInstance(this).enqueueUniqueWork(
+            "device_media_scan",
+            ExistingWorkPolicy.REPLACE,
+            work
+        )
+    }
 }
+
 
 @Composable
 fun NidoApp(playbackController: PlaybackController) {
@@ -317,3 +360,4 @@ private fun SimpleBottomBar(
         }
     }
 }
+

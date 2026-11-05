@@ -29,6 +29,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.nido.music.feature.chat.data.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -51,10 +52,16 @@ private fun getMessageSnippet(msg: MessageEntity): String {
 fun ChatDetailScreen(
     conversationId: String,
     onNavigateBack: () -> Unit,
-    onNavigateToClipTrimmer: () -> Unit = {}
+    onNavigateToClipTrimmer: () -> Unit = {},
+    viewModel: ChatDetailViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
+
+    val conversation by viewModel.conversation.collectAsState()
+    val allMessages by viewModel.messages.collectAsState()
+    val isPeerTyping by viewModel.isPeerTyping.collectAsState()
+    val peerName = conversation?.title ?: "Chat"
 
     var inputText by remember { mutableStateOf("") }
     var replyingToMessage by remember { mutableStateOf<MessageEntity?>(null) }
@@ -72,41 +79,6 @@ fun ChatDetailScreen(
     // Audio recording state
     var isRecordingAudio by remember { mutableStateOf(false) }
     var recordingDurationSec by remember { mutableIntStateOf(0) }
-
-    // Typing simulation state
-    var isPeerTyping by remember { mutableStateOf(false) }
-
-    val mockMessages = remember {
-        mutableStateListOf(
-            MessageEntity(
-                id = "m1",
-                conversationId = conversationId,
-                senderId = "peer_bob",
-                type = MessageType.TEXT,
-                content = "Hey! Check out this chorus part:",
-                status = MessageStatus.READ,
-                timestamp = System.currentTimeMillis() - 600000
-            ),
-            MessageEntity(
-                id = "m2",
-                conversationId = conversationId,
-                senderId = "peer_bob",
-                type = MessageType.CLIP,
-                content = "clip_json",
-                status = MessageStatus.READ,
-                timestamp = System.currentTimeMillis() - 500000
-            ),
-            MessageEntity(
-                id = "m3",
-                conversationId = conversationId,
-                senderId = "me",
-                type = MessageType.LOCATION,
-                content = Json.encodeToString(LocationPayload(37.7749, -122.4194, "San Francisco Concert Hall")),
-                status = MessageStatus.READ,
-                timestamp = System.currentTimeMillis() - 400000
-            )
-        )
-    }
 
     val sampleClip = remember {
         ClipPayload(
@@ -130,11 +102,11 @@ fun ChatDetailScreen(
         }
     }
 
-    val displayedMessages = remember(mockMessages.toList(), isSearching, searchQuery) {
+    val displayedMessages = remember(allMessages, isSearching, searchQuery) {
         if (isSearching && searchQuery.isNotBlank()) {
-            mockMessages.filter { it.content.contains(searchQuery, ignoreCase = true) }
+            allMessages.filter { it.content.contains(searchQuery, ignoreCase = true) }
         } else {
-            mockMessages
+            allMessages
         }
     }
 
@@ -157,7 +129,7 @@ fun ChatDetailScreen(
                     } else {
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Bob", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                Text(peerName, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Icon(
                                     Icons.Default.Lock,
@@ -253,16 +225,7 @@ fun ChatDetailScreen(
                             }
                             IconButton(onClick = {
                                 isRecordingAudio = false
-                                mockMessages.add(
-                                    MessageEntity(
-                                        id = "m_${java.util.UUID.randomUUID()}",
-                                        conversationId = conversationId,
-                                        senderId = "me",
-                                        type = MessageType.AUDIO,
-                                        content = Json.encodeToString(VoiceNotePayload(durationMs = 4500L)),
-                                        status = MessageStatus.SENT
-                                    )
-                                )
+                                viewModel.sendVoiceNote(4500L)
                             }) {
                                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send Voice Note", tint = MaterialTheme.colorScheme.primary)
                             }
@@ -303,17 +266,10 @@ fun ChatDetailScreen(
                                 IconButton(
                                     onClick = {
                                         if (inputText.isNotBlank()) {
-                                            mockMessages.add(
-                                                MessageEntity(
-                                                    id = "m_${java.util.UUID.randomUUID()}",
-                                                    conversationId = conversationId,
-                                                    senderId = "me",
-                                                    type = MessageType.TEXT,
-                                                    content = inputText,
-                                                    status = MessageStatus.SENT,
-                                                    replyToId = replyingToMessage?.id,
-                                                    replyToSnippet = replyingToMessage?.let { getMessageSnippet(it) }
-                                                )
+                                            viewModel.sendMessage(
+                                                text = inputText,
+                                                replyToId = replyingToMessage?.id,
+                                                replyToSnippet = replyingToMessage?.let { getMessageSnippet(it) }
                                             )
                                             inputText = ""
                                             replyingToMessage = null
@@ -349,10 +305,7 @@ fun ChatDetailScreen(
                         Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
                     },
                     onStar = { target ->
-                        val idx = mockMessages.indexOfFirst { it.id == target.id }
-                        if (idx != -1) {
-                            mockMessages[idx] = target.copy(isStarred = !target.isStarred)
-                        }
+                        viewModel.toggleStarred(target.id, target.isStarred)
                     },
                     onEdit = { messageToEdit = it },
                     onDelete = { messageToDelete = it },
@@ -375,41 +328,16 @@ fun ChatDetailScreen(
                 ) {
                     AttachmentOption(icon = Icons.Default.CameraAlt, label = "Camera") {
                         showAttachmentSheet = false
-                        mockMessages.add(
-                            MessageEntity(
-                                id = "m_${java.util.UUID.randomUUID()}",
-                                conversationId = conversationId,
-                                senderId = "me",
-                                type = MessageType.IMAGE,
-                                content = "camera_capture.jpg",
-                                status = MessageStatus.SENT
-                            )
-                        )
+                        viewModel.sendMessage("[Photo: camera_capture.jpg]")
                     }
                     AttachmentOption(icon = Icons.Default.PhotoLibrary, label = "Gallery") {
                         showAttachmentSheet = false
-                        mockMessages.add(
-                            MessageEntity(
-                                id = "m_${java.util.UUID.randomUUID()}",
-                                conversationId = conversationId,
-                                senderId = "me",
-                                type = MessageType.IMAGE,
-                                content = "gallery_photo.jpg",
-                                status = MessageStatus.SENT
-                            )
-                        )
+                        viewModel.sendMessage("[Photo: gallery_photo.jpg]")
                     }
                     AttachmentOption(icon = Icons.Default.Videocam, label = "Video") {
                         showAttachmentSheet = false
-                        mockMessages.add(
-                            MessageEntity(
-                                id = "m_${java.util.UUID.randomUUID()}",
-                                conversationId = conversationId,
-                                senderId = "me",
-                                type = MessageType.VIDEO,
-                                content = Json.encodeToString(VideoPayload(durationMs = 12000L, width = 1080, height = 1920)),
-                                status = MessageStatus.SENT
-                            )
+                        viewModel.sendMessage(
+                            Json.encodeToString(VideoPayload(durationMs = 12000L, width = 1080, height = 1920))
                         )
                     }
                     AttachmentOption(icon = Icons.Default.MusicNote, label = "Clip") {
@@ -435,16 +363,7 @@ fun ChatDetailScreen(
             confirmButton = {
                 Button(onClick = {
                     showLocationDialog = false
-                    mockMessages.add(
-                        MessageEntity(
-                            id = "m_${java.util.UUID.randomUUID()}",
-                            conversationId = conversationId,
-                            senderId = "me",
-                            type = MessageType.LOCATION,
-                            content = Json.encodeToString(LocationPayload(latitude = 37.7858, longitude = -122.4064, name = "Current Pin")),
-                            status = MessageStatus.SENT
-                        )
-                    )
+                    viewModel.sendLocation(37.7858, -122.4064, "Current Pin")
                 }) {
                     Text("Share One-Time Pin")
                 }
@@ -452,16 +371,7 @@ fun ChatDetailScreen(
             dismissButton = {
                 OutlinedButton(onClick = {
                     showLocationDialog = false
-                    mockMessages.add(
-                        MessageEntity(
-                            id = "m_${java.util.UUID.randomUUID()}",
-                            conversationId = conversationId,
-                            senderId = "me",
-                            type = MessageType.LOCATION,
-                            content = Json.encodeToString(LocationPayload(latitude = 37.7858, longitude = -122.4064, isLive = true, durationSeconds = 3600L)),
-                            status = MessageStatus.SENT
-                        )
-                    )
+                    viewModel.sendLocation(37.7858, -122.4064, "Live Location (1h)")
                 }) {
                     Text("Share Live (1h)")
                 }
@@ -497,16 +407,7 @@ fun ChatDetailScreen(
                                 .size(72.dp)
                                 .clickable {
                                     showStickersSheet = false
-                                    mockMessages.add(
-                                        MessageEntity(
-                                            id = "m_${java.util.UUID.randomUUID()}",
-                                            conversationId = conversationId,
-                                            senderId = "me",
-                                            type = MessageType.STICKER,
-                                            content = Json.encodeToString(StickerPayload("nido_default", "music_note_1")),
-                                            status = MessageStatus.SENT
-                                        )
-                                    )
+                                    viewModel.sendSticker(Json.encodeToString(StickerPayload("nido_default", "music_note_1")))
                                 }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -557,10 +458,7 @@ fun ChatDetailScreen(
             },
             confirmButton = {
                 Button(onClick = {
-                    val idx = mockMessages.indexOfFirst { it.id == msg.id }
-                    if (idx != -1) {
-                        mockMessages[idx] = msg.copy(content = editedText, isEdited = true)
-                    }
+                    viewModel.editMessage(msg.id, editedText)
                     messageToEdit = null
                 }) {
                     Text("Save")
@@ -589,17 +487,14 @@ fun ChatDetailScreen(
             confirmButton = {
                 if (isSenderMe) {
                     Button(onClick = {
-                        val idx = mockMessages.indexOfFirst { it.id == msg.id }
-                        if (idx != -1) {
-                            mockMessages[idx] = msg.copy(isDeleted = true, content = "This message was deleted")
-                        }
+                        viewModel.deleteMessage(msg.id, forEveryone = true)
                         messageToDelete = null
                     }) {
                         Text("Delete for Everyone")
                     }
                 } else {
                     Button(onClick = {
-                        mockMessages.removeAll { it.id == msg.id }
+                        viewModel.deleteMessage(msg.id, forEveryone = false)
                         messageToDelete = null
                     }) {
                         Text("Delete for Me")
@@ -609,7 +504,7 @@ fun ChatDetailScreen(
             dismissButton = {
                 if (isSenderMe) {
                     OutlinedButton(onClick = {
-                        mockMessages.removeAll { it.id == msg.id }
+                        viewModel.deleteMessage(msg.id, forEveryone = false)
                         messageToDelete = null
                     }) {
                         Text("Delete for Me")

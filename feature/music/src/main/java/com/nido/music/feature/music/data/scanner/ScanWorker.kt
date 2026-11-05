@@ -1,8 +1,10 @@
 package com.nido.music.feature.music.data.scanner
 
+import android.content.ContentUris
 import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.provider.MediaStore
 import androidx.documentfile.provider.DocumentFile
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
@@ -29,6 +31,21 @@ class ScanWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        // Remove stale/revoked SAF links that cause Permission Denial
+        songDao.deleteSafSongs()
+
+        val coversDir = File(appContext.filesDir, "covers").apply { mkdirs() }
+        val allScannedUris = mutableListOf<String>()
+        val batch = mutableListOf<SongEntity>()
+
+        // 1. Scan device MediaStore audio files
+        scanMediaStore(batch, allScannedUris)
+        if (batch.isNotEmpty()) {
+            songDao.upsertSongs(batch)
+            batch.clear()
+        }
+
+        // 2. Scan configured SAF folders if still valid
         val treeUriStr = inputData.getString(KEY_TREE_URI)
         val folders = if (treeUriStr != null) {
             listOf(treeUriStr)
@@ -36,17 +53,14 @@ class ScanWorker @AssistedInject constructor(
             folderDao.getAllFoldersList().map { it.treeUri }
         }
 
-        if (folders.isEmpty()) {
-            return@withContext Result.success()
-        }
-
-        val coversDir = File(appContext.filesDir, "covers").apply { mkdirs() }
-        val allScannedUris = mutableListOf<String>()
-        val batch = mutableListOf<SongEntity>()
-
         for (uriStr in folders) {
-            val root = DocumentFile.fromTreeUri(appContext, Uri.parse(uriStr)) ?: continue
-            scanDirectoryRecursive(root, root.name ?: "", coversDir, batch, allScannedUris)
+            try {
+                val root = DocumentFile.fromTreeUri(appContext, Uri.parse(uriStr)) ?: continue
+                if (root.canRead()) {
+                    scanDirectoryRecursive(root, root.name ?: "", coversDir, batch, allScannedUris)
+                }
+            } catch (_: Exception) {
+            }
         }
 
         if (batch.isNotEmpty()) {
@@ -54,16 +68,61 @@ class ScanWorker @AssistedInject constructor(
             batch.clear()
         }
 
-        // Clean stale songs if scanning all configured folders
-        if (treeUriStr == null) {
-            songDao.deleteStaleNotIn(allScannedUris)
-        }
-
         folders.forEach { uri ->
             folderDao.updateLastScanTimestamp(uri, System.currentTimeMillis())
         }
 
         Result.success()
+    }
+
+    private fun scanMediaStore(
+        batch: MutableList<SongEntity>,
+        allScannedUris: MutableList<String>
+    ) {
+        val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.IS_MUSIC
+        )
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+
+        try {
+            appContext.contentResolver.query(uri, projection, selection, null, "${MediaStore.Audio.Media.TITLE} ASC")?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val durCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idCol)
+                    val contentUri = ContentUris.withAppendedId(uri, id).toString()
+                    val title = cursor.getString(titleCol) ?: "Unknown"
+                    val artist = cursor.getString(artistCol) ?: "Unknown Artist"
+                    val album = cursor.getString(albumCol) ?: "Unknown Album"
+                    val duration = cursor.getLong(durCol)
+
+                    allScannedUris.add(contentUri)
+                    batch.add(
+                        SongEntity(
+                            uri = contentUri,
+                            title = title,
+                            artist = if (artist.contains("<unknown>")) "Unknown Artist" else artist,
+                            album = if (album.contains("<unknown>")) "Unknown Album" else album,
+                            durationMs = duration,
+                            folderPath = "Internal Storage",
+                            dateAdded = System.currentTimeMillis()
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ScanWorker", "Failed to query MediaStore", e)
+        }
     }
 
     private suspend fun scanDirectoryRecursive(

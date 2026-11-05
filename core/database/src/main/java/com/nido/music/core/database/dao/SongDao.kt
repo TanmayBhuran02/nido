@@ -84,6 +84,9 @@ interface SongDao {
     @Query("DELETE FROM songs WHERE uri NOT IN (:validUris)")
     suspend fun deleteStaleNotIn(validUris: List<String>)
 
+    @Query("DELETE FROM songs WHERE uri LIKE 'content://com.android.externalstorage%'")
+    suspend fun deleteSafSongs()
+
     @Query("SELECT uri FROM songs")
     suspend fun getAllUris(): List<String>
 

@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.nido.music.feature.chat.data.ConversationEntity
 
 data class PhoneContact(
@@ -121,7 +122,8 @@ fun inviteContact(context: Context, contact: PhoneContact) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationsScreen(
-    onNavigateToChat: (String) -> Unit
+    onNavigateToChat: (String) -> Unit,
+    viewModel: ConversationsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     var showCreateGroupDialog by remember { mutableStateOf(false) }
@@ -146,37 +148,7 @@ fun ConversationsScreen(
         queryPhoneContacts(context)
     }
 
-    val conversations = remember {
-        mutableStateListOf(
-            ConversationEntity(
-                id = "conv_1",
-                peerId = "peer_bob",
-                title = "Bob",
-                lastMessageSnippet = "Check out this song clip!",
-                lastMessageTimestamp = System.currentTimeMillis() - 1000 * 60 * 5,
-                unreadCount = 1,
-                isGroup = false
-            ),
-            ConversationEntity(
-                id = "conv_group_1",
-                peerId = "group_music_squad",
-                title = "Nido Music Squad 🎧",
-                lastMessageSnippet = "Alice: Loved the new indie track",
-                lastMessageTimestamp = System.currentTimeMillis() - 1000 * 60 * 25,
-                unreadCount = 3,
-                isGroup = true
-            ),
-            ConversationEntity(
-                id = "conv_2",
-                peerId = "peer_alice",
-                title = "Alice",
-                lastMessageSnippet = "Sounds good, see you tomorrow",
-                lastMessageTimestamp = System.currentTimeMillis() - 1000 * 60 * 60,
-                unreadCount = 0,
-                isGroup = false
-            )
-        )
-    }
+    val conversations by viewModel.conversations.collectAsState()
 
     Scaffold(
         topBar = {
@@ -282,21 +254,10 @@ fun ConversationsScreen(
                 Button(
                     onClick = {
                         if (groupName.isNotBlank()) {
-                            val id = "grp_${System.currentTimeMillis()}"
-                            conversations.add(
-                                0,
-                                ConversationEntity(
-                                    id = id,
-                                    peerId = "group_${groupName.lowercase().replace(" ", "_")}",
-                                    title = groupName,
-                                    lastMessageSnippet = "Group created",
-                                    lastMessageTimestamp = System.currentTimeMillis(),
-                                    unreadCount = 0,
-                                    isGroup = true
-                                )
-                            )
-                            showCreateGroupDialog = false
-                            onNavigateToChat(id)
+                            viewModel.createGroup(groupName) { id ->
+                                showCreateGroupDialog = false
+                                onNavigateToChat(id)
+                            }
                         }
                     }
                 ) {
@@ -322,20 +283,11 @@ fun ConversationsScreen(
                 hasContactsPermission = hasContactsPermission,
                 onRequestPermission = { contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS) },
                 onSelectContact = { contact ->
-                    val id = "conv_${System.currentTimeMillis()}"
                     val cleanPeerId = contact.name.lowercase().replace(" ", "_")
-                    val newConv = ConversationEntity(
-                        id = id,
-                        peerId = "peer_$cleanPeerId",
-                        title = contact.name,
-                        lastMessageSnippet = "Chat started",
-                        lastMessageTimestamp = System.currentTimeMillis(),
-                        unreadCount = 0,
-                        isGroup = false
-                    )
-                    conversations.add(0, newConv)
-                    showNewChatDialog = false
-                    onNavigateToChat(id)
+                    viewModel.createConversation("peer_$cleanPeerId", contact.name) { id ->
+                        showNewChatDialog = false
+                        onNavigateToChat(id)
+                    }
                 },
                 onInviteContact = { contact ->
                     inviteContact(context, contact)
@@ -345,20 +297,11 @@ fun ConversationsScreen(
                     showCreateGroupDialog = true
                 },
                 onManualUserChat = { username ->
-                    val id = "conv_${System.currentTimeMillis()}"
                     val cleanPeerId = username.lowercase().replace(" ", "_").replace("@", "")
-                    val newConv = ConversationEntity(
-                        id = id,
-                        peerId = "peer_$cleanPeerId",
-                        title = username,
-                        lastMessageSnippet = "Chat started",
-                        lastMessageTimestamp = System.currentTimeMillis(),
-                        unreadCount = 0,
-                        isGroup = false
-                    )
-                    conversations.add(0, newConv)
-                    showNewChatDialog = false
-                    onNavigateToChat(id)
+                    viewModel.createConversation("peer_$cleanPeerId", username) { id ->
+                        showNewChatDialog = false
+                        onNavigateToChat(id)
+                    }
                 }
             )
         }

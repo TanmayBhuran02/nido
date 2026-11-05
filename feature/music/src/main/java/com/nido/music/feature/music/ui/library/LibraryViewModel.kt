@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -46,6 +47,44 @@ class LibraryViewModel @Inject constructor(
 ) : ViewModel() {
 
     val searchQuery = MutableStateFlow("")
+
+    init {
+        viewModelScope.launch {
+            val count = songDao.getSongCount().first()
+            if (count == 0) {
+                val demoSongs = listOf(
+                    SongEntity(
+                        uri = "https://prod-1.storage.jamendo.com/?trackid=1215291&format=mp32&from=app-56d30c95",
+                        title = "Creative Commons Anthem",
+                        artist = "Jamendo Artists",
+                        album = "Nido Starter Pack",
+                        durationMs = 184000L,
+                        folderPath = "Online",
+                        dateAdded = System.currentTimeMillis()
+                    ),
+                    SongEntity(
+                        uri = "https://prod-1.storage.jamendo.com/?trackid=1118141&format=mp32&from=app-56d30c95",
+                        title = "Ambient Chillout",
+                        artist = "Soundroll",
+                        album = "Nido Starter Pack",
+                        durationMs = 210000L,
+                        folderPath = "Online",
+                        dateAdded = System.currentTimeMillis()
+                    ),
+                    SongEntity(
+                        uri = "https://prod-1.storage.jamendo.com/?trackid=1411516&format=mp32&from=app-56d30c95",
+                        title = "Summer Grooves",
+                        artist = "Electro Nido",
+                        album = "Beats",
+                        durationMs = 195000L,
+                        folderPath = "Online",
+                        dateAdded = System.currentTimeMillis()
+                    )
+                )
+                songDao.upsertSongs(demoSongs)
+            }
+        }
+    }
 
     val songs: StateFlow<List<SongEntity>> = searchQuery
         .flatMapLatest { query ->

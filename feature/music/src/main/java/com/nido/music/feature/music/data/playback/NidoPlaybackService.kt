@@ -33,6 +33,13 @@ class NidoPlaybackService : MediaSessionService() {
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .build()
+            .apply {
+                addListener(object : Player.Listener {
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        android.util.Log.e("NidoPlaybackService", "ExoPlayer Error: ${error.errorCodeName}", error)
+                    }
+                })
+            }
 
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
         val sessionActivityPendingIntent = if (launchIntent != null) {

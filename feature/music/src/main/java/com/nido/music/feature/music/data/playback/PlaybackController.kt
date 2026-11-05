@@ -36,6 +36,7 @@ class PlaybackController @Inject constructor(
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var player: MediaController? = null
+    private var pendingPlayRequest: (() -> Unit)? = null
 
     private val _currentSong = MutableStateFlow<SongEntity?>(null)
     val currentSong: StateFlow<SongEntity?> = _currentSong.asStateFlow()
@@ -87,9 +88,15 @@ class PlaybackController @Inject constructor(
         )
         controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         controllerFuture?.addListener({
-            player = controllerFuture?.get()
-            setupPlayerListener()
-            handler.post(progressRunnable)
+            try {
+                player = controllerFuture?.get()
+                setupPlayerListener()
+                handler.post(progressRunnable)
+                pendingPlayRequest?.invoke()
+                pendingPlayRequest = null
+            } catch (e: Exception) {
+                android.util.Log.e("PlaybackController", "Failed to connect to MediaController", e)
+            }
         }, MoreExecutors.directExecutor())
     }
 
@@ -97,6 +104,19 @@ class PlaybackController @Inject constructor(
         player?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 _isPlaying.value = playing
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) {
+                    _duration.value = player?.duration?.coerceAtLeast(0L) ?: _currentSong.value?.durationMs ?: 0L
+                } else if (playbackState == Player.STATE_ENDED) {
+                    _isPlaying.value = false
+                }
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                android.util.Log.e("PlaybackController", "Playback error: ${error.errorCodeName}", error)
+                _isPlaying.value = false
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -129,38 +149,49 @@ class PlaybackController @Inject constructor(
     fun playSong(song: SongEntity, fullList: List<SongEntity> = listOf(song)) {
         _currentSong.value = song
         _currentQueue.value = fullList
-        player?.let { p ->
-            val mediaItems = fullList.map { s ->
-                MediaItem.Builder()
-                    .setMediaId(s.uri)
-                    .setUri(Uri.parse(s.uri))
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setTitle(s.title)
-                            .setArtist(s.artist)
-                            .setAlbumTitle(s.album)
-                            .build()
-                    )
-                    .build()
-            }
-            val startIndex = fullList.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-            p.setMediaItems(mediaItems, startIndex, 0L)
-            p.prepare()
-            p.play()
+        val p = player
+        if (p == null) {
+            pendingPlayRequest = { playSong(song, fullList) }
+            return
+        }
+        val mediaItems = fullList.map { s ->
+            MediaItem.Builder()
+                .setMediaId(s.uri)
+                .setUri(Uri.parse(s.uri))
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(s.title)
+                        .setArtist(s.artist)
+                        .setAlbumTitle(s.album)
+                        .build()
+                )
+                .build()
+        }
+        val startIndex = fullList.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+        p.setMediaItems(mediaItems, startIndex, 0L)
+        p.prepare()
+        p.play()
 
-            // Update queue in database
-            scope.launch(Dispatchers.IO) {
-                val queueItems = fullList.mapIndexed { index, s ->
-                    QueueItemEntity(position = index, songId = s.id)
-                }
-                queueDao.replaceQueue(queueItems)
+        // Update queue in database
+        scope.launch(Dispatchers.IO) {
+            val queueItems = fullList.mapIndexed { index, s ->
+                QueueItemEntity(position = index, songId = s.id)
             }
+            queueDao.replaceQueue(queueItems)
         }
     }
 
     fun togglePlayPause() {
         player?.let { p ->
-            if (p.isPlaying) p.pause() else p.play()
+            if (p.isPlaying) {
+                p.pause()
+            } else {
+                if (p.mediaItemCount == 0 && _currentSong.value != null) {
+                    _currentSong.value?.let { playSong(it, _currentQueue.value.ifEmpty { listOf(it) }) }
+                } else {
+                    p.play()
+                }
+            }
         }
     }
 
