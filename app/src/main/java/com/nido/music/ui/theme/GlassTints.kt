@@ -13,7 +13,8 @@ data class GlassTints(
     val edgeSpecular: Color = NidoEdgeSpecular,
     val textPrimary: Color = NidoTextPrimary,
     val textSecondary: Color = NidoTextSecondary,
-    val textTertiary: Color = NidoTextTertiary
+    val textTertiary: Color = NidoTextTertiary,
+    val accentGlow: Color = accent.copy(alpha = 0.28f)
 )
 
 val LocalGlassTints = compositionLocalOf {
@@ -25,7 +26,8 @@ val LocalGlassTints = compositionLocalOf {
         edgeSpecular = NidoEdgeSpecular,
         textPrimary = NidoTextPrimary,
         textSecondary = NidoTextSecondary,
-        textTertiary = NidoTextTertiary
+        textTertiary = NidoTextTertiary,
+        accentGlow = NidoAmberGlow
     )
 }
 

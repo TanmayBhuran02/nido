@@ -10,11 +10,15 @@ enum class ThemeMode(val title: String) {
     SYSTEM("System Default"),
     DARK("Liquid Glass (Dark)"),
     LIGHT("Liquid Glass (Light)"),
-    OLED("OLED Black");
+    OLED("OLED Black"),
+    EMERALD("Emerald Aurora"),
+    CYBERPUNK("Cyberpunk Neon"),
+    SUNSET("Sunset Velvet"),
+    AMETHYST("Royal Amethyst");
 
     companion object {
         fun fromTitle(title: String): ThemeMode =
-            entries.firstOrNull { it.title == title } ?: SYSTEM
+            entries.firstOrNull { it.title.equals(title, ignoreCase = true) } ?: SYSTEM
     }
 }
 

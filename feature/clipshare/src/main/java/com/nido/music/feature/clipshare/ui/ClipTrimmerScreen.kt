@@ -52,12 +52,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 
-private val AmberPrimary = Color(0xFFF59E0B)
-private val CanvasFloor = Color(0xFF0B0B0E)
-private val GlassCardBg = Color(0x7314141A)
-private val EdgeSpecular = Color(0x24FFFFFF)
-private val TextPrimary = Color(0xFFF8FAFC)
-private val TextSecondary = Color(0xA6F8FAFC)
+private val AmberPrimary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.primary
+
+private val CanvasFloor: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.background
+
+private val GlassCardBg: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surface
+
+private val EdgeSpecular: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.outline
+
+private val TextPrimary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurface
+
+private val TextSecondary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant
 
 @Composable
 fun ClipTrimmerScreen(

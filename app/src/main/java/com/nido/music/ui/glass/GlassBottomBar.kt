@@ -77,7 +77,7 @@ fun GlassBottomBar(
                     label = "iconColor"
                 )
                 val textColor by animateColorAsState(
-                    targetValue = if (selected) NidoTextPrimary else NidoTextTertiary,
+                    targetValue = if (selected) tints.textPrimary else tints.textTertiary,
                     label = "textColor"
                 )
 
@@ -108,7 +108,7 @@ fun GlassBottomBar(
                             modifier = Modifier
                                 .padding(top = 2.dp)
                                 .size(4.dp)
-                                .background(NidoAmberAccent, CircleShape)
+                                .background(tints.accent, CircleShape)
                         )
                     }
                 }

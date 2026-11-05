@@ -82,14 +82,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeMode by themeManager.themeMode.collectAsState()
             val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
-            val isDark = when (themeMode) {
-                com.nido.music.core.common.ThemeMode.SYSTEM -> isSystemDark
-                com.nido.music.core.common.ThemeMode.LIGHT -> false
-                com.nido.music.core.common.ThemeMode.DARK, com.nido.music.core.common.ThemeMode.OLED -> true
-            }
-            val isOled = themeMode == com.nido.music.core.common.ThemeMode.OLED
 
-            NidoTheme(darkTheme = isDark, isOled = isOled) {
+            NidoTheme(darkTheme = isSystemDark, themeMode = themeMode) {
                 NidoApp(playbackController)
             }
         }
@@ -164,14 +158,15 @@ private fun SimpleMiniPlayer(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val tints = com.nido.music.ui.theme.LocalGlassTints.current
     val shape = RoundedCornerShape(24.dp)
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
             .height(60.dp)
-            .background(Color(0xD9101018), shape)
-            .border(1.dp, NidoEdgeSpecular, shape)
+            .background(tints.elevated, shape)
+            .border(1.dp, tints.edgeSpecular, shape)
             .clip(shape)
             .clickable { onClick() }
             .padding(horizontal = 14.dp),
@@ -185,14 +180,14 @@ private fun SimpleMiniPlayer(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(NidoAmberAccent.copy(alpha = 0.15f))
-                    .border(0.5.dp, NidoAmberAccent.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+                    .background(tints.accent.copy(alpha = 0.15f))
+                    .border(0.5.dp, tints.accent.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.MusicNote,
                     contentDescription = null,
-                    tint = NidoAmberAccent,
+                    tint = tints.accent,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -202,7 +197,7 @@ private fun SimpleMiniPlayer(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = song.title,
-                    color = NidoTextPrimary,
+                    color = tints.textPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -210,7 +205,7 @@ private fun SimpleMiniPlayer(
                 )
                 Text(
                     text = song.artist,
-                    color = NidoTextSecondary,
+                    color = tints.textSecondary,
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -221,7 +216,7 @@ private fun SimpleMiniPlayer(
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "Pause" else "Play",
-                    tint = NidoAmberAccent,
+                    tint = tints.accent,
                     modifier = Modifier.size(26.dp)
                 )
             }
@@ -230,7 +225,7 @@ private fun SimpleMiniPlayer(
                 Icon(
                     imageVector = Icons.Default.SkipNext,
                     contentDescription = "Next",
-                    tint = NidoTextPrimary,
+                    tint = tints.textPrimary,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -244,14 +239,15 @@ private fun SimpleBottomBar(
     onNavigate: (TopLevelDestination) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val tints = com.nido.music.ui.theme.LocalGlassTints.current
     val shape = RoundedCornerShape(32.dp)
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 16.dp)
             .height(64.dp)
-            .background(Color(0xD9101018), shape)
-            .border(1.dp, NidoEdgeSpecular, shape)
+            .background(tints.elevated, shape)
+            .border(1.dp, tints.edgeSpecular, shape)
             .clip(shape),
         contentAlignment = Alignment.Center
     ) {
@@ -263,11 +259,11 @@ private fun SimpleBottomBar(
             TopLevelDestination.entries.forEach { destination ->
                 val selected = currentRoute == destination.route
                 val iconColor by animateColorAsState(
-                    targetValue = if (selected) NidoAmberAccent else NidoTextTertiary,
+                    targetValue = if (selected) tints.accent else tints.textTertiary,
                     label = "iconColor"
                 )
                 val textColor by animateColorAsState(
-                    targetValue = if (selected) NidoTextPrimary else NidoTextTertiary,
+                    targetValue = if (selected) tints.textPrimary else tints.textTertiary,
                     label = "textColor"
                 )
 
@@ -298,7 +294,7 @@ private fun SimpleBottomBar(
                             modifier = Modifier
                                 .padding(top = 2.dp)
                                 .size(4.dp)
-                                .background(NidoAmberAccent, CircleShape)
+                                .background(tints.accent, CircleShape)
                         )
                     }
                 }

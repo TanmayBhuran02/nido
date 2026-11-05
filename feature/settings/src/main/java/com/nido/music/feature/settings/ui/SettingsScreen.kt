@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -63,12 +64,29 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 
-private val AmberPrimary = Color(0xFFF59E0B)
-private val CanvasFloor = Color(0xFF0B0B0E)
-private val GlassCardBg = Color(0x7314141A)
-private val EdgeSpecular = Color(0x24FFFFFF)
-private val TextPrimary = Color(0xFFF8FAFC)
-private val TextSecondary = Color(0xA6F8FAFC)
+private val AmberPrimary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.primary
+
+private val CanvasFloor: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.background
+
+private val GlassCardBg: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surface
+
+private val EdgeSpecular: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.outline
+
+private val TextPrimary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurface
+
+private val TextSecondary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant
 
 @Composable
 fun SettingsScreen(
@@ -87,33 +105,14 @@ fun SettingsScreen(
 
     val isLight = currentThemeMode == com.nido.music.core.common.ThemeMode.LIGHT
     val isOled = currentThemeMode == com.nido.music.core.common.ThemeMode.OLED
-    val currentCanvasFloor = when {
-        isOled -> Color.Black
-        isLight -> Color(0xFFF3F4F6)
-        else -> CanvasFloor
-    }
-    val currentGlassCardBg = when {
-        isOled -> Color(0xFF0F0F12).copy(alpha = 0.90f)
-        isLight -> Color.White.copy(alpha = 0.82f)
-        else -> GlassCardBg
-    }
-    val currentEdgeSpecular = when {
-        isOled -> Color(0x33FFFFFF)
-        isLight -> Color(0x1F000000)
-        else -> EdgeSpecular
-    }
-    val currentTextPrimary = when {
-        isLight -> Color(0xFF0F172A)
-        else -> TextPrimary
-    }
-    val currentTextSecondary = when {
-        isLight -> Color(0xBF0F172A)
-        else -> TextSecondary
-    }
-    val currentHeaderColor = when {
-        isLight -> Color(0xFFB45309)
-        else -> AmberPrimary
-    }
+
+    val colorScheme = androidx.compose.material3.MaterialTheme.colorScheme
+    val currentCanvasFloor = colorScheme.background
+    val currentGlassCardBg = colorScheme.surface
+    val currentEdgeSpecular = colorScheme.outline
+    val currentTextPrimary = colorScheme.onSurface
+    val currentTextSecondary = colorScheme.onSurfaceVariant
+    val currentHeaderColor = colorScheme.primary
 
     val settingsBackdrop = rememberLayerBackdrop()
 
@@ -386,45 +385,56 @@ fun SettingsScreen(
         }
 
         if (showThemeDialog) {
-            val themes = listOf(
-                "System Default",
-                "Liquid Glass (Dark)",
-                "Liquid Glass (Light)",
-                "OLED Black"
-            )
+            val themes = com.nido.music.core.common.ThemeMode.entries
             AlertDialog(
                 onDismissRequest = { showThemeDialog = false },
                 title = { Text("Appearance Theme", color = currentTextPrimary) },
                 text = {
                     Column {
                         themes.forEach { theme ->
+                            val themeAccent = when (theme) {
+                                com.nido.music.core.common.ThemeMode.SYSTEM -> currentHeaderColor
+                                com.nido.music.core.common.ThemeMode.DARK -> Color(0xFFF59E0B)
+                                com.nido.music.core.common.ThemeMode.LIGHT -> Color(0xFFD97706)
+                                com.nido.music.core.common.ThemeMode.OLED -> Color(0xFFFFFFFF)
+                                com.nido.music.core.common.ThemeMode.EMERALD -> Color(0xFF10B981)
+                                com.nido.music.core.common.ThemeMode.CYBERPUNK -> Color(0xFF06B6D4)
+                                com.nido.music.core.common.ThemeMode.SUNSET -> Color(0xFFF43F5E)
+                                com.nido.music.core.common.ThemeMode.AMETHYST -> Color(0xFFA855F7)
+                            }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        viewModel.setThemeMode(theme)
+                                        viewModel.setThemeMode(theme.title)
                                         showThemeDialog = false
                                     }
                                     .padding(vertical = 8.dp)
                             ) {
                                 RadioButton(
-                                    selected = selectedThemeMode == theme,
+                                    selected = selectedThemeMode == theme.title,
                                     onClick = {
-                                        viewModel.setThemeMode(theme)
+                                        viewModel.setThemeMode(theme.title)
                                         showThemeDialog = false
                                     },
-                                    colors = RadioButtonDefaults.colors(selectedColor = AmberPrimary)
+                                    colors = RadioButtonDefaults.colors(selectedColor = currentHeaderColor)
                                 )
-                                Spacer(modifier = Modifier.size(8.dp))
-                                Text(theme, color = currentTextPrimary)
+                                Spacer(modifier = Modifier.size(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .background(themeAccent, CircleShape)
+                                )
+                                Spacer(modifier = Modifier.size(10.dp))
+                                Text(theme.title, color = currentTextPrimary)
                             }
                         }
                     }
                 },
                 confirmButton = {
                     TextButton(onClick = { showThemeDialog = false }) {
-                        Text("Close", color = AmberPrimary)
+                        Text("Close", color = currentHeaderColor)
                     }
                 }
             )

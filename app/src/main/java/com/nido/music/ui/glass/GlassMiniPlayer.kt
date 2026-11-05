@@ -83,14 +83,14 @@ fun GlassMiniPlayer(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(NidoAmberAccent.copy(alpha = 0.15f))
-                    .border(0.5.dp, NidoAmberAccent.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+                    .background(tints.accent.copy(alpha = 0.15f))
+                    .border(0.5.dp, tints.accent.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.MusicNote,
                     contentDescription = null,
-                    tint = NidoAmberAccent,
+                    tint = tints.accent,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -121,7 +121,7 @@ fun GlassMiniPlayer(
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "Pause" else "Play",
-                    tint = NidoAmberAccent,
+                    tint = tints.accent,
                     modifier = Modifier.size(26.dp)
                 )
             }

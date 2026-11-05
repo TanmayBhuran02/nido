@@ -75,13 +75,33 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.nido.music.feature.music.ui.library.LibraryViewModel
 
-private val AmberPrimary = Color(0xFFF59E0B)
-private val CanvasFloor = Color(0xFF0B0B0E)
-private val GlassCardLevel3 = Color(0xD9101018)
-private val EdgeSpecular = Color(0x24FFFFFF)
-private val TextPrimary = Color(0xFFF8FAFC)
-private val TextSecondary = Color(0xA6F8FAFC)
-private val TextTertiary = Color(0x61F8FAFC)
+private val AmberPrimary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.primary
+
+private val CanvasFloor: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.background
+
+private val GlassCardLevel3: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surfaceVariant
+
+private val EdgeSpecular: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.outline
+
+private val TextPrimary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurface
+
+private val TextSecondary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant
+
+private val TextTertiary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,6 +126,8 @@ fun PlayerScreen(
     var showQueueSheet by remember { mutableStateOf(false) }
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val playerBackdrop = rememberLayerBackdrop()
+    val controlSurface = MaterialTheme.colorScheme.surface
+    val heroPanelSurface = MaterialTheme.colorScheme.surfaceVariant
 
     Box(
         modifier = modifier
@@ -187,7 +209,7 @@ fun PlayerScreen(
                             blur(16.dp.toPx())
                         },
                         onDrawSurface = {
-                            drawRect(Color(0x551E1E26))
+                            drawRect(controlSurface)
                         }
                     )
                     .border(1.dp, EdgeSpecular, RoundedCornerShape(22.dp))
@@ -214,7 +236,7 @@ fun PlayerScreen(
                             blur(16.dp.toPx())
                         },
                         onDrawSurface = {
-                            drawRect(Color(0x551E1E26))
+                            drawRect(controlSurface)
                         }
                     )
                     .border(1.dp, EdgeSpecular, RoundedCornerShape(20.dp))
@@ -254,7 +276,7 @@ fun PlayerScreen(
                         blur(36.dp.toPx())
                     },
                     onDrawSurface = {
-                        drawRect(GlassCardLevel3)
+                        drawRect(heroPanelSurface)
                     }
                 )
                 .border(1.dp, EdgeSpecular, RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp))

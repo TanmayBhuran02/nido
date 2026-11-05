@@ -62,12 +62,29 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.nido.music.core.network.model.SearchResult
 
-private val AmberPrimary = Color(0xFFF59E0B)
-private val CanvasFloor = Color(0xFF0B0B0E)
-private val GlassCardBg = Color(0x7314141A)
-private val EdgeSpecular = Color(0x24FFFFFF)
-private val TextPrimary = Color(0xFFF8FAFC)
-private val TextSecondary = Color(0xA6F8FAFC)
+private val AmberPrimary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.primary
+
+private val CanvasFloor: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.background
+
+private val GlassCardBg: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.surface
+
+private val EdgeSpecular: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.outline
+
+private val TextPrimary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurface
+
+private val TextSecondary: Color
+    @Composable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant
 
 @Composable
 fun DiscoverScreen(
@@ -83,6 +100,8 @@ fun DiscoverScreen(
     val downloadSuccessTrackIds by viewModel.downloadSuccessTrackIds.collectAsState()
 
     val discoverBackdrop = rememberLayerBackdrop()
+    val cardSurface = MaterialTheme.colorScheme.surface
+    val elevatedSurface = MaterialTheme.colorScheme.surfaceVariant
 
     Box(
         modifier = modifier
@@ -183,7 +202,7 @@ fun DiscoverScreen(
                                     blur(24.dp.toPx())
                                 },
                                 onDrawSurface = {
-                                    drawRect(GlassCardBg)
+                                    drawRect(cardSurface)
                                 }
                             )
                             .border(1.dp, EdgeSpecular, RoundedCornerShape(32.dp))
@@ -260,7 +279,7 @@ fun DiscoverScreen(
                         blur(20.dp.toPx())
                     },
                     onDrawSurface = {
-                        drawRect(Color(0xA6181820))
+                        drawRect(elevatedSurface)
                     }
                 )
                 .border(0.5.dp, EdgeSpecular, RoundedCornerShape(0.dp))
