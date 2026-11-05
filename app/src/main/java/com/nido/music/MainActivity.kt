@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,9 +83,23 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeMode by themeManager.themeMode.collectAsState()
             val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            var showSplash by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
 
             NidoTheme(darkTheme = isSystemDark, themeMode = themeMode) {
-                NidoApp(playbackController)
+                Box(modifier = Modifier.fillMaxSize()) {
+                    NidoApp(playbackController)
+
+                    AnimatedVisibility(
+                        visible = showSplash,
+                        exit = androidx.compose.animation.fadeOut(
+                            animationSpec = androidx.compose.animation.core.tween(durationMillis = 400)
+                        )
+                    ) {
+                        com.nido.music.ui.splash.NidoSplashScreen(
+                            onSplashFinished = { showSplash = false }
+                        )
+                    }
+                }
             }
         }
     }
