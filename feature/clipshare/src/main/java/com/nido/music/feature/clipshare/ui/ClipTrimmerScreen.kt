@@ -34,6 +34,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -173,30 +174,165 @@ fun ClipTrimmerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                // Trimmer Sliders
-                val totalDuration = (song?.durationMs ?: 60000L).coerceAtLeast(1000L)
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "Segment: ${formatDuration(startMs)} – ${formatDuration(endMs)}",
-                        color = AmberPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Slider(
-                        value = (startMs.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f),
-                        onValueChange = { fraction ->
-                            val newStart = (fraction * totalDuration).toLong()
-                            val newEnd = (newStart + 30000L).coerceAtMost(totalDuration)
+                // Trimmer Sliders with dual Start and End controls
+                val totalDuration = (song?.durationMs ?: 60000L).coerceAtLeast(2000L)
+                val clipLengthSec = ((endMs - startMs) / 1000L).coerceAtLeast(0L)
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(GlassCardBg.copy(alpha = 0.6f))
+                        .border(1.dp, EdgeSpecular, RoundedCornerShape(24.dp))
+                        .padding(18.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Trim Range",
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(AmberPrimary.copy(alpha = 0.18f))
+                                .border(1.dp, AmberPrimary.copy(alpha = 0.4f), CircleShape)
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Duration: ${clipLengthSec}s",
+                                color = AmberPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Dual Range Slider (clipping from BOTH start and end)
+                    RangeSlider(
+                        value = (startMs.toFloat())..(endMs.toFloat()),
+                        onValueChange = { range ->
+                            val newStart = range.start.toLong().coerceIn(0L, totalDuration - 1000L)
+                            val newEnd = range.endInclusive.toLong().coerceIn(newStart + 1000L, totalDuration)
                             viewModel.updateRange(newStart, newEnd)
                         },
+                        valueRange = 0f..totalDuration.toFloat(),
                         colors = SliderDefaults.colors(
-                            thumbColor = Color.White,
-                            activeTrackColor = AmberPrimary
-                        )
+                            thumbColor = AmberPrimary,
+                            activeTrackColor = AmberPrimary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Direct Start & End Fine-Adjustment Controls
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Start point card
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surface)
+                                .border(1.dp, EdgeSpecular, RoundedCornerShape(16.dp))
+                                .padding(10.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Start: ${formatDuration(startMs)}",
+                                    color = AmberPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Button(
+                                        onClick = {
+                                            val newStart = (startMs - 1000L).coerceAtLeast(0L)
+                                            viewModel.updateRange(newStart, endMs)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = AmberPrimary.copy(alpha = 0.12f)),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.weight(1f).height(30.dp),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("-1s", color = AmberPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            val newStart = (startMs + 1000L).coerceAtMost(endMs - 1000L)
+                                            viewModel.updateRange(newStart, endMs)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = AmberPrimary.copy(alpha = 0.12f)),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.weight(1f).height(30.dp),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("+1s", color = AmberPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        // End point card
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surface)
+                                .border(1.dp, EdgeSpecular, RoundedCornerShape(16.dp))
+                                .padding(10.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "End: ${formatDuration(endMs)}",
+                                    color = AmberPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Button(
+                                        onClick = {
+                                            val newEnd = (endMs - 1000L).coerceAtLeast(startMs + 1000L)
+                                            viewModel.updateRange(startMs, newEnd)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = AmberPrimary.copy(alpha = 0.12f)),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.weight(1f).height(30.dp),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("-1s", color = AmberPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            val newEnd = (endMs + 1000L).coerceAtMost(totalDuration)
+                                            viewModel.updateRange(startMs, newEnd)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = AmberPrimary.copy(alpha = 0.12f)),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.weight(1f).height(30.dp),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("+1s", color = AmberPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -254,14 +390,14 @@ fun ClipTrimmerScreen(
                 ) {
                     if (isExporting) {
                         CircularProgressIndicator(
-                            color = CanvasFloor,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(24.dp),
                             strokeWidth = 2.dp
                         )
                     } else {
                         Text(
                             text = "Export Audio Clip",
-                            color = CanvasFloor,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
@@ -276,7 +412,7 @@ fun ClipTrimmerScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(statusBarHeight + 56.dp)
-                .background(Color(0xD914141A))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f))
                 .border(0.5.dp, EdgeSpecular, RoundedCornerShape(0.dp))
                 .padding(top = statusBarHeight, start = 16.dp, end = 16.dp),
             contentAlignment = Alignment.CenterStart
