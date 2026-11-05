@@ -360,7 +360,7 @@ fun ClipTrimmerScreen(
                                         file
                                     )
                                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "audio/*"
+                                        type = "audio/mp4"
                                         putExtra(Intent.EXTRA_STREAM, uri)
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }

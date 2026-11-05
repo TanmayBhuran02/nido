@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto Backup rules (pre-Android 12).
+  Include DataStore preferences and Room database so user data
+  (settings, playlists, liked songs, library folders) survives reinstall.
+-->
+<full-backup-content>
+    <include domain="file" path="datastore/" />
+    <include domain="database" path="nido_music_secure.db" />
+    <include domain="database" path="nido_music.db" />
+    <exclude domain="file" path="clips/" />
+    <exclude domain="no_backup" path="." />
+</full-backup-content>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Data extraction rules (Android 12+).
+  Include DataStore preferences and Room database so user data
+  (settings, playlists, liked songs, library folders) survives reinstall.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="file" path="datastore/" />
+        <include domain="database" path="nido_music_secure.db" />
+        <include domain="database" path="nido_music.db" />
+        <exclude domain="file" path="clips/" />
+        <exclude domain="no_backup" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="file" path="datastore/" />
+        <include domain="database" path="nido_music_secure.db" />
+        <include domain="database" path="nido_music.db" />
+        <exclude domain="file" path="clips/" />
+        <exclude domain="no_backup" path="." />
+    </device-transfer>
+</data-extraction-rules>

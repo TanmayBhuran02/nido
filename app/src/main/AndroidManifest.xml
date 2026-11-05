@@ -27,7 +27,10 @@
 
     <application
         android:name=".NidoApplication"
-        android:allowBackup="false"
+        android:allowBackup="true"
+        android:hasFragileUserData="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="Nido"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"

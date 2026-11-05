@@ -257,8 +257,8 @@ fun SettingsScreen(
                     glassCardBg = currentGlassCardBg,
                     edgeSpecular = currentEdgeSpecular
                 ) {
-                    var readReceipts by remember { mutableStateOf(true) }
-                    var lastSeenPrivacy by remember { mutableStateOf(true) }
+                    val readReceipts by viewModel.readReceipts.collectAsState()
+                    val lastSeenPrivacy by viewModel.lastSeenPrivacy.collectAsState()
                     var showPrivacyNotice by remember { mutableStateOf(false) }
 
                     SettingsRow(
@@ -277,8 +277,8 @@ fun SettingsScreen(
                         textPrimary = currentTextPrimary,
                         textSecondary = currentTextSecondary,
                         onClick = {
-                            readReceipts = !readReceipts
-                            Toast.makeText(context, "Read receipts: ${if (readReceipts) "On" else "Off"}", Toast.LENGTH_SHORT).show()
+                            viewModel.toggleReadReceipts()
+                            Toast.makeText(context, "Read receipts: ${if (!readReceipts) "On" else "Off"}", Toast.LENGTH_SHORT).show()
                         }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -289,8 +289,8 @@ fun SettingsScreen(
                         textPrimary = currentTextPrimary,
                         textSecondary = currentTextSecondary,
                         onClick = {
-                            lastSeenPrivacy = !lastSeenPrivacy
-                            Toast.makeText(context, "Last seen: ${if (lastSeenPrivacy) "Contacts" else "Nobody"}", Toast.LENGTH_SHORT).show()
+                            viewModel.toggleLastSeenPrivacy()
+                            Toast.makeText(context, "Last seen: ${if (!lastSeenPrivacy) "Contacts" else "Nobody"}", Toast.LENGTH_SHORT).show()
                         }
                     )
 

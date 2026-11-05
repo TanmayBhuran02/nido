@@ -9,6 +9,7 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import com.nido.music.core.common.ThemeManager
 import com.nido.music.core.common.ThemeMode
+import com.nido.music.core.common.UserPreferencesRepository
 import com.nido.music.core.database.dao.LibraryFolderDao
 import com.nido.music.core.database.entity.LibraryFolderEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,7 +26,8 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val folderDao: LibraryFolderDao,
-    private val themeManager: ThemeManager
+    private val themeManager: ThemeManager,
+    private val prefsRepository: UserPreferencesRepository
 ) : ViewModel() {
 
     val themeMode: StateFlow<ThemeMode> = themeManager.themeMode
@@ -38,6 +40,26 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val rescanTriggered = MutableStateFlow(false)
+
+    // ── Privacy settings (persisted) ────────────────────────────────
+
+    val readReceipts: StateFlow<Boolean> = prefsRepository.readReceiptsFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val lastSeenPrivacy: StateFlow<Boolean> = prefsRepository.lastSeenPrivacyFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun toggleReadReceipts() {
+        val newValue = !readReceipts.value
+        viewModelScope.launch { prefsRepository.setReadReceipts(newValue) }
+    }
+
+    fun toggleLastSeenPrivacy() {
+        val newValue = !lastSeenPrivacy.value
+        viewModelScope.launch { prefsRepository.setLastSeenPrivacy(newValue) }
+    }
+
+    // ── Library rescan ──────────────────────────────────────────────
 
     fun triggerRescan() {
         val workerClass = try {
@@ -66,4 +88,3 @@ class SettingsViewModel @Inject constructor(
         }
     }
 }
-

@@ -26,6 +26,9 @@ dependencies {
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
 
+    // DataStore
+    implementation(libs.datastore.preferences)
+
     // Javax Inject
     compileOnly("javax.inject:javax.inject:1")
 }

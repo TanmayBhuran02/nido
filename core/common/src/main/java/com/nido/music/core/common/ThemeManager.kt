@@ -1,8 +1,10 @@
 package com.nido.music.core.common
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,15 +25,28 @@ enum class ThemeMode(val title: String) {
 }
 
 @Singleton
-class ThemeManager @Inject constructor() {
+class ThemeManager @Inject constructor(
+    private val prefsRepository: UserPreferencesRepository,
+    @MainScope private val scope: CoroutineScope
+) {
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
+    init {
+        // Restore persisted theme on startup
+        scope.launch {
+            prefsRepository.themeModeFlow.collect { mode ->
+                _themeMode.value = mode
+            }
+        }
+    }
+
     fun setThemeMode(mode: ThemeMode) {
         _themeMode.value = mode
+        scope.launch { prefsRepository.setThemeMode(mode) }
     }
 
     fun setThemeMode(title: String) {
-        _themeMode.value = ThemeMode.fromTitle(title)
+        setThemeMode(ThemeMode.fromTitle(title))
     }
 }

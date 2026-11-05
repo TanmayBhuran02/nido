@@ -94,7 +94,7 @@ class ClipTrimmerViewModel @Inject constructor(
         _isExporting.value = true
 
         val outputDir = File(context.filesDir, "clips").apply { mkdirs() }
-        val outputFile = File(outputDir, "clip_${System.currentTimeMillis()}.mp4")
+        val outputFile = File(outputDir, "clip_${System.currentTimeMillis()}.m4a")
 
         val mediaItem = MediaItem.Builder()
             .setUri(s.uri)
@@ -106,9 +106,12 @@ class ClipTrimmerViewModel @Inject constructor(
             )
             .build()
 
-        val editedMediaItem = EditedMediaItem.Builder(mediaItem).build()
+        val editedMediaItem = EditedMediaItem.Builder(mediaItem)
+            .setRemoveVideo(true)  // audio-only → WhatsApp-compatible
+            .build()
 
         val transformer = Transformer.Builder(context)
+            .setAudioMimeType("audio/mp4a-latm") // Force AAC codec
             .addListener(object : Transformer.Listener {
                 override fun onCompleted(composition: Composition, exportResult: ExportResult) {
                     _isExporting.value = false

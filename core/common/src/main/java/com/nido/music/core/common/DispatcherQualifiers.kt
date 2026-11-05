@@ -17,3 +17,8 @@ annotation class MainDispatcher
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class DefaultDispatcher
+
+/** Application-scoped CoroutineScope tied to the app lifecycle. */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class MainScope

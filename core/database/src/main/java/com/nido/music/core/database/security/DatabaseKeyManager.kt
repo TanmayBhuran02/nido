@@ -3,6 +3,7 @@ package com.nido.music.core.database.security
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import java.io.File
 import java.security.SecureRandom
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -11,36 +12,106 @@ import javax.inject.Singleton
 class DatabaseKeyManager @Inject constructor(
     private val context: Context
 ) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+    /**
+     * Encrypted prefs backed by Android Keystore — secure but device-bound.
+     * Created lazily; may fail after restore if Keystore key was wiped.
+     */
+    private val encryptedPrefs by lazy {
+        runCatching {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            EncryptedSharedPreferences.create(
+                context,
+                ENCRYPTED_PREFS_FILE,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        }.getOrNull()
+    }
 
-    private val sharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "nido_vault_prefs",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    /**
+     * Backup-safe plain file in the no_backup directory is NOT useful for cloud,
+     * so we use a file in the regular files dir that IS included in Auto Backup.
+     * This allows the DB passphrase to survive reinstall via Google cloud backup.
+     *
+     * The passphrase is stored as hex in a plain file. While less secure than
+     * EncryptedSharedPreferences, it enables data recovery after reinstall.
+     * The DB itself is still encrypted at rest via SQLCipher.
+     */
+    private val backupKeyFile: File
+        get() = File(context.filesDir, BACKUP_KEY_FILENAME)
 
     fun getOrCreatePassphrase(): ByteArray {
-        val existingHex = sharedPreferences.getString(KEY_DB_PASSPHRASE, null)
-        if (existingHex != null) {
-            return hexToBytes(existingHex)
+        // 1. Try EncryptedSharedPreferences (primary, most secure)
+        val fromEncrypted = readFromEncryptedPrefs()
+        if (fromEncrypted != null) {
+            // Ensure backup copy exists
+            writeBackupKey(bytesToHex(fromEncrypted))
+            return fromEncrypted
         }
 
+        // 2. Try backup file (survives reinstall via Auto Backup)
+        val fromBackup = readBackupKey()
+        if (fromBackup != null) {
+            val bytes = hexToBytes(fromBackup)
+            // Re-store in EncryptedSharedPreferences for future use
+            writeToEncryptedPrefs(fromBackup)
+            return bytes
+        }
+
+        // 3. Generate new passphrase
         val newKey = ByteArray(32)
         SecureRandom().nextBytes(newKey)
         val hexString = bytesToHex(newKey)
 
-        val committed = sharedPreferences.edit()
-            .putString(KEY_DB_PASSPHRASE, hexString)
-            .commit()
-        if (!committed) {
-            error("Failed to commit database passphrase to encrypted preferences")
-        }
+        writeToEncryptedPrefs(hexString)
+        writeBackupKey(hexString)
 
         return newKey
+    }
+
+    private fun readFromEncryptedPrefs(): ByteArray? {
+        return try {
+            val hex = encryptedPrefs?.getString(KEY_DB_PASSPHRASE, null) ?: return null
+            hexToBytes(hex)
+        } catch (_: Exception) {
+            // Keystore key was wiped (reinstall) — EncryptedSharedPreferences is broken.
+            // Delete the corrupted prefs file so it can be recreated.
+            runCatching {
+                val prefsFile = File(context.applicationInfo.dataDir, "shared_prefs/$ENCRYPTED_PREFS_FILE.xml")
+                if (prefsFile.exists()) prefsFile.delete()
+            }
+            null
+        }
+    }
+
+    private fun writeToEncryptedPrefs(hexPassphrase: String) {
+        try {
+            encryptedPrefs?.edit()
+                ?.putString(KEY_DB_PASSPHRASE, hexPassphrase)
+                ?.commit()
+        } catch (_: Exception) {
+            // Keystore may be unavailable; backup file is the fallback
+        }
+    }
+
+    private fun readBackupKey(): String? {
+        return try {
+            if (backupKeyFile.exists()) backupKeyFile.readText().trim().ifEmpty { null } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun writeBackupKey(hexPassphrase: String) {
+        try {
+            backupKeyFile.parentFile?.mkdirs()
+            backupKeyFile.writeText(hexPassphrase)
+        } catch (_: Exception) {
+            // Non-fatal — encrypted prefs is the primary store
+        }
     }
 
     private fun bytesToHex(bytes: ByteArray): String {
@@ -65,5 +136,7 @@ class DatabaseKeyManager @Inject constructor(
 
     companion object {
         private const val KEY_DB_PASSPHRASE = "db_passphrase_key"
+        private const val ENCRYPTED_PREFS_FILE = "nido_vault_prefs"
+        private const val BACKUP_KEY_FILENAME = "datastore/nido_db_key.bin"
     }
 }
