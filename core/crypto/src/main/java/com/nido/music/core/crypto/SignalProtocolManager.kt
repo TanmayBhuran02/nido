@@ -115,7 +115,11 @@ class SignalProtocolManager @Inject constructor() {
     /**
      * Decrypts [ciphertextB64] from [senderUserId] using the session ratchet.
      */
-    fun decrypt(senderUserId: String, ciphertextB64: String): ByteArray {
+    fun decrypt(
+        senderUserId: String,
+        ciphertextB64: String,
+        alternatePeerIds: List<String> = emptyList()
+    ): ByteArray {
         val rawBytes = Base64.getDecoder().decode(ciphertextB64)
         val buffer = ByteBuffer.wrap(rawBytes)
 
@@ -127,11 +131,19 @@ class SignalProtocolManager @Inject constructor() {
         val encryptedBytes = ByteArray(buffer.remaining())
         buffer.get(encryptedBytes)
 
-        val derivedKey = deriveSessionKey(senderUserId, salt)
-        val secretKey = SecretKeySpec(derivedKey, "AES")
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(128, iv))
-        return cipher.doFinal(encryptedBytes)
+        val candidates = (listOf(senderUserId) + alternatePeerIds).distinct()
+        for (candidate in candidates) {
+            try {
+                val derivedKey = deriveSessionKey(candidate, salt)
+                val secretKey = SecretKeySpec(derivedKey, "AES")
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(128, iv))
+                return cipher.doFinal(encryptedBytes)
+            } catch (e: Exception) {
+                // Try next candidate
+            }
+        }
+        throw IllegalStateException("Failed to decrypt message with any key candidate: $candidates")
     }
 
     private fun deriveSessionKey(peerId: String, salt: ByteArray): ByteArray {

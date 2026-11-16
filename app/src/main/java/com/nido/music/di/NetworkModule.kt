@@ -61,7 +61,7 @@ object NetworkModule {
     @Singleton
     fun provideMusicSyncApi(okHttpClient: OkHttpClient, json: Json): com.nido.music.core.network.sync.MusicSyncApi {
         return Retrofit.Builder()
-            .baseUrl("https://nido-relay.embarko.app/")
+            .baseUrl("http://192.168.0.109:8000/")
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
@@ -72,7 +72,7 @@ object NetworkModule {
     @Singleton
     fun provideChatRelayApi(okHttpClient: OkHttpClient, json: Json): com.nido.music.core.network.relay.ChatRelayApi {
         return Retrofit.Builder()
-            .baseUrl("https://nido-relay.embarko.app/")
+            .baseUrl("http://192.168.0.109:8000/")
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()

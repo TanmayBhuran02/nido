@@ -245,11 +245,31 @@ class ChatRepository @Inject constructor(
 
         for (item in pending) {
             try {
-                val decryptedBytes = signalProtocolManager.decrypt(item.sender_user_id, item.ciphertext)
+                val alternateKeys = mutableListOf<String>()
+                item.sender_username?.let {
+                    alternateKeys.add(it)
+                    alternateKeys.add("peer_$it")
+                }
+                auth.username?.let {
+                    alternateKeys.add(it)
+                    alternateKeys.add("peer_$it")
+                }
+
+                val decryptedBytes = try {
+                    signalProtocolManager.decrypt(
+                        senderUserId = item.sender_user_id,
+                        ciphertextB64 = item.ciphertext,
+                        alternatePeerIds = alternateKeys
+                    )
+                } catch (e: Exception) {
+                    "[Encrypted message]".toByteArray(Charsets.UTF_8)
+                }
                 val plaintext = String(decryptedBytes, Charsets.UTF_8)
 
-                val peerId = "peer_${item.sender_user_id}"
-                val convId = createOrGetConversation(peerId, "User ${item.sender_user_id.take(6)}")
+                val senderName = item.sender_username ?: item.sender_user_id
+                val peerId = "peer_$senderName"
+                val convTitle = if (item.sender_username != null) "@${item.sender_username}" else "User ${item.sender_user_id.take(6)}"
+                val convId = createOrGetConversation(peerId, convTitle)
 
                 val msg = MessageEntity(
                     id = item.id,
@@ -280,7 +300,7 @@ class ChatRepository @Inject constructor(
 
                 relayApi.ackMessage("Bearer ${auth.accessToken}", item.id)
             } catch (e: Exception) {
-                // Ignore decrypt errors for mismatched keys
+                // Ignore transient errors
             }
         }
     }

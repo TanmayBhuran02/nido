@@ -26,6 +26,7 @@ class EditMessageRequest(BaseModel):
 class PendingMessageOut(BaseModel):
     id: str
     sender_user_id: str
+    sender_username: Optional[str] = None
     sender_device_id: int
     ciphertext: str
     message_type: int
@@ -85,25 +86,27 @@ async def get_pending_messages(
     db: AsyncSession = Depends(get_db)
 ):
     stmt = (
-        select(PendingMessage)
+        select(PendingMessage, User.username)
+        .join(User, User.id == PendingMessage.sender_user_id, isouter=True)
         .where(PendingMessage.recipient_user_id == user_id, PendingMessage.recipient_device_id == device_id)
         .order_by(PendingMessage.created_at.asc())
     )
     res = await db.execute(stmt)
-    rows = res.scalars().all()
+    rows = res.all()
 
     return [
         PendingMessageOut(
-            id=r.id,
-            sender_user_id=r.sender_user_id,
-            sender_device_id=r.sender_device_id,
-            ciphertext=r.ciphertext,
-            message_type=r.message_type,
-            group_id=r.group_id,
-            reply_to_id=r.reply_to_id,
-            is_deleted=r.is_deleted,
-            is_forwarded=r.is_forwarded,
-            created_at=r.created_at.isoformat()
+            id=r[0].id,
+            sender_user_id=r[0].sender_user_id,
+            sender_username=r[1],
+            sender_device_id=r[0].sender_device_id,
+            ciphertext=r[0].ciphertext,
+            message_type=r[0].message_type,
+            group_id=r[0].group_id,
+            reply_to_id=r[0].reply_to_id,
+            is_deleted=r[0].is_deleted,
+            is_forwarded=r[0].is_forwarded,
+            created_at=r[0].created_at.isoformat()
         )
         for r in rows
     ]

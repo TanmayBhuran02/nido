@@ -101,6 +101,7 @@ data class SendMessageResponse(
 data class PendingMessageOut(
     val id: String,
     val sender_user_id: String,
+    val sender_username: String? = null,
     val sender_device_id: Int,
     val ciphertext: String,
     val message_type: Int,
