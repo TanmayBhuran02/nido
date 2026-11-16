@@ -124,6 +124,11 @@ class ChatDetailViewModel @Inject constructor(
     private fun triggerPeerAutoReply(trigger: String) {
         viewModelScope.launch {
             val conv = _conversation.value ?: repository.getConversation(conversationId)
+            val peerId = conv?.peerId?.lowercase() ?: ""
+            // Only simulate replies for local demo mock bots
+            if (peerId != "peer_bob" && peerId != "peer_alice" && peerId != "peer_support") {
+                return@launch
+            }
             val peerTitle = conv?.title?.lowercase() ?: ""
 
             val reply = when {

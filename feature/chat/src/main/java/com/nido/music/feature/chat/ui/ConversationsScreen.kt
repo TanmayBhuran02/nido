@@ -128,6 +128,8 @@ fun ConversationsScreen(
     val context = LocalContext.current
     var showCreateGroupDialog by remember { mutableStateOf(false) }
     var showNewChatDialog by remember { mutableStateOf(false) }
+    var showEditProfileDialog by remember { mutableStateOf(false) }
+    val authState by viewModel.authState.collectAsState()
 
     var hasContactsPermission by remember {
         mutableStateOf(
@@ -166,6 +168,31 @@ fun ConversationsScreen(
                     }
                 },
                 actions = {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
+                        modifier = Modifier.clickable { showEditProfileDialog = true }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = authState.username?.let { "@$it" } ?: "Identity",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
                     IconButton(onClick = { showCreateGroupDialog = true }) {
                         Icon(Icons.Default.Group, contentDescription = "Create Group")
                     }
@@ -302,9 +329,61 @@ fun ConversationsScreen(
                         showNewChatDialog = false
                         onNavigateToChat(id)
                     }
-                }
+                },
+                myUsername = authState.username
             )
         }
+    }
+
+    if (showEditProfileDialog) {
+        var inputName by remember { mutableStateOf(authState.username ?: "") }
+        var errorMsg by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { showEditProfileDialog = false },
+            title = { Text("My Chat Identity") },
+            text = {
+                Column {
+                    Text(
+                        "Set your unique @username so friends can find and chat with you securely via the Nido relay.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = inputName,
+                        onValueChange = { inputName = it; errorMsg = null },
+                        label = { Text("Username") },
+                        placeholder = { Text("e.g. satoshi") },
+                        singleLine = true,
+                        isError = errorMsg != null,
+                        supportingText = errorMsg?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (inputName.isNotBlank()) {
+                            viewModel.setUsername(inputName.trim()) { success, err ->
+                                if (success) {
+                                    showEditProfileDialog = false
+                                } else {
+                                    errorMsg = err ?: "Registration failed"
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditProfileDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -316,7 +395,8 @@ fun NewChatContactsSheet(
     onSelectContact: (PhoneContact) -> Unit,
     onInviteContact: (PhoneContact) -> Unit,
     onCreateGroupClick: () -> Unit,
-    onManualUserChat: (String) -> Unit
+    onManualUserChat: (String) -> Unit,
+    myUsername: String? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var manualUsername by remember { mutableStateOf("") }
@@ -346,6 +426,28 @@ fun NewChatContactsSheet(
             fontSize = 20.sp,
             modifier = Modifier.padding(vertical = 8.dp)
         )
+
+        if (!myUsername.isNullOrEmpty()) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Your handle: @$myUsername (tell your friend to chat here)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
 
         OutlinedTextField(
             value = searchQuery,

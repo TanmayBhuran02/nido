@@ -1,0 +1,157 @@
+package com.nido.music.core.network.relay
+
+import kotlinx.serialization.Serializable
+import retrofit2.http.Body
+import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Path
+import retrofit2.http.Query
+
+@Serializable
+data class RegisterRequest(
+    val username: String,
+    val password: String,
+    val phone: String? = null,
+    val registration_id: Int,
+    val device_id: Int = 1,
+    val fcm_token: String? = null
+)
+
+@Serializable
+data class LoginRequest(
+    val username: String,
+    val password: String,
+    val device_id: Int = 1,
+    val fcm_token: String? = null
+)
+
+@Serializable
+data class AuthResponse(
+    val user_id: String,
+    val username: String,
+    val device_id: Int,
+    val access_token: String,
+    val refresh_token: String,
+    val token_type: String = "bearer"
+)
+
+@Serializable
+data class RegisteredContact(
+    val phone: String = "",
+    val username: String,
+    val user_id: String
+)
+
+@Serializable
+data class ContactLookupRequest(
+    val phone_numbers: List<String>
+)
+
+@Serializable
+data class SignedPreKeyIn(
+    val key_id: Int,
+    val public_key: String,
+    val signature: String
+)
+
+@Serializable
+data class OneTimePreKeyIn(
+    val key_id: Int,
+    val public_key: String
+)
+
+@Serializable
+data class UploadPreKeyBundle(
+    val identity_key: String,
+    val signed_prekey: SignedPreKeyIn,
+    val one_time_prekeys: List<OneTimePreKeyIn>,
+    val device_id: Int = 1
+)
+
+@Serializable
+data class PeerBundleResponse(
+    val user_id: String,
+    val device_id: Int,
+    val registration_id: Int,
+    val identity_key: String,
+    val signed_prekey: SignedPreKeyIn,
+    val one_time_prekey: OneTimePreKeyIn? = null
+)
+
+@Serializable
+data class SendMessageRequest(
+    val recipient_user_id: String,
+    val recipient_device_id: Int = 1,
+    val ciphertext: String,
+    val message_type: Int = 1,
+    val sender_device_id: Int = 1,
+    val reply_to_id: String? = null,
+    val is_forwarded: Boolean = false
+)
+
+@Serializable
+data class SendMessageResponse(
+    val status: String,
+    val message_id: String
+)
+
+@Serializable
+data class PendingMessageOut(
+    val id: String,
+    val sender_user_id: String,
+    val sender_device_id: Int,
+    val ciphertext: String,
+    val message_type: Int,
+    val group_id: String? = null,
+    val reply_to_id: String? = null,
+    val is_deleted: Boolean = false,
+    val is_forwarded: Boolean = false,
+    val created_at: String
+)
+
+interface ChatRelayApi {
+    @POST("/api/v1/auth/register")
+    suspend fun register(@Body req: RegisterRequest): AuthResponse
+
+    @POST("/api/v1/auth/login")
+    suspend fun login(@Body req: LoginRequest): AuthResponse
+
+    @GET("/api/v1/auth/user/{username}")
+    suspend fun getUserByUsername(@Path("username") username: String): RegisteredContact
+
+    @POST("/api/v1/auth/contacts/lookup")
+    suspend fun lookupContacts(@Body req: ContactLookupRequest): List<RegisteredContact>
+
+    @PUT("/api/v1/keys/bundle")
+    suspend fun uploadKeys(
+        @Header("Authorization") auth: String,
+        @Body bundle: UploadPreKeyBundle
+    )
+
+    @GET("/api/v1/keys/bundle/{peer_user_id}")
+    suspend fun getPeerBundle(
+        @Header("Authorization") auth: String,
+        @Path("peer_user_id") peerUserId: String,
+        @Query("device_id") deviceId: Int = 1
+    ): PeerBundleResponse
+
+    @POST("/api/v1/messages/send")
+    suspend fun sendMessage(
+        @Header("Authorization") auth: String,
+        @Body req: SendMessageRequest
+    ): SendMessageResponse
+
+    @GET("/api/v1/messages/pending")
+    suspend fun getPendingMessages(
+        @Header("Authorization") auth: String,
+        @Query("device_id") deviceId: Int = 1
+    ): List<PendingMessageOut>
+
+    @POST("/api/v1/messages/ack/{message_id}")
+    suspend fun ackMessage(
+        @Header("Authorization") auth: String,
+        @Path("message_id") messageId: String
+    )
+}

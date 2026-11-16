@@ -2,6 +2,7 @@ package com.nido.music.feature.chat.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nido.music.feature.chat.data.ChatAuthManager
 import com.nido.music.feature.chat.data.ChatRepository
 import com.nido.music.feature.chat.data.ConversationEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,11 +14,25 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ConversationsViewModel @Inject constructor(
-    private val repository: ChatRepository
+    private val repository: ChatRepository,
+    private val authManager: ChatAuthManager
 ) : ViewModel() {
+
+    val authState: StateFlow<ChatAuthManager.AuthState> = authManager.authState
 
     val conversations: StateFlow<List<ConversationEntity>> = repository.getConversations()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun setUsername(newUsername: String, onComplete: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val result = authManager.registerUser(newUsername)
+            if (result.isSuccess) {
+                onComplete(true, null)
+            } else {
+                onComplete(false, result.exceptionOrNull()?.message)
+            }
+        }
+    }
 
     fun createConversation(peerId: String, title: String, onCreated: (String) -> Unit) {
         viewModelScope.launch {

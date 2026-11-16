@@ -61,10 +61,21 @@ object NetworkModule {
     @Singleton
     fun provideMusicSyncApi(okHttpClient: OkHttpClient, json: Json): com.nido.music.core.network.sync.MusicSyncApi {
         return Retrofit.Builder()
-            .baseUrl("http://10.0.2.2:8000/")
+            .baseUrl("https://nido-relay.embarko.app/")
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(com.nido.music.core.network.sync.MusicSyncApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideChatRelayApi(okHttpClient: OkHttpClient, json: Json): com.nido.music.core.network.relay.ChatRelayApi {
+        return Retrofit.Builder()
+            .baseUrl("https://nido-relay.embarko.app/")
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(com.nido.music.core.network.relay.ChatRelayApi::class.java)
     }
 }

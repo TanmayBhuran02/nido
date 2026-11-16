@@ -1,12 +1,13 @@
 package com.nido.music.feature.chat.data
 
 import com.nido.music.core.crypto.SignalProtocolManager
+import com.nido.music.core.network.relay.ChatRelayApi
+import com.nido.music.core.network.relay.SendMessageRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
@@ -15,13 +16,17 @@ import javax.inject.Singleton
 @Singleton
 class ChatRepository @Inject constructor(
     private val chatDao: ChatDao,
-    private val signalProtocolManager: SignalProtocolManager
+    private val signalProtocolManager: SignalProtocolManager,
+    private val relayApi: ChatRelayApi,
+    private val authManager: ChatAuthManager
 ) {
     private val repoScope = CoroutineScope(Dispatchers.IO)
 
     init {
         repoScope.launch {
             seedDefaultConversationsIfEmpty()
+            authManager.autoRegisterIfGuest()
+            startPeriodicSync()
         }
     }
 
@@ -132,9 +137,8 @@ class ChatRepository @Inject constructor(
         val conversation = chatDao.getConversation(conversationId)
         val peerId = conversation?.peerId ?: "peer_unknown"
 
-        // Encrypt with Signal Protocol to verify end-to-end ratchet
+        // Encrypt with Signal Protocol
         val encryptedEnvelope = signalProtocolManager.encrypt(peerId, text.toByteArray(Charsets.UTF_8))
-        // Decrypt verification
         val decryptedPlaintext = signalProtocolManager.decrypt(peerId, encryptedEnvelope.ciphertext)
         val verifiedText = String(decryptedPlaintext, Charsets.UTF_8)
 
@@ -174,7 +178,111 @@ class ChatRepository @Inject constructor(
             )
         }
 
+        // Relay to backend if it's a real user
+        val isMock = peerId == "peer_bob" || peerId == "peer_alice" || peerId == "peer_support"
+        if (!isMock) {
+            repoScope.launch {
+                try {
+                    val auth = authManager.autoRegisterIfGuest()
+                    if (auth.isLoggedIn && !auth.accessToken.isNullOrEmpty()) {
+                        var targetUserId = peerId.removePrefix("peer_")
+                        if (!targetUserId.contains("-") && targetUserId.length < 32) {
+                            try {
+                                val userContact = relayApi.getUserByUsername(targetUserId)
+                                targetUserId = userContact.user_id
+                            } catch (e: Exception) {
+                                // proceed with targetUserId as given
+                            }
+                        }
+
+                        relayApi.sendMessage(
+                            auth = "Bearer ${auth.accessToken}",
+                            req = SendMessageRequest(
+                                recipient_user_id = targetUserId,
+                                recipient_device_id = 1,
+                                ciphertext = encryptedEnvelope.ciphertext,
+                                message_type = when (type) {
+                                    MessageType.TEXT -> 1
+                                    MessageType.CLIP -> 2
+                                    MessageType.AUDIO -> 3
+                                    else -> 1
+                                },
+                                reply_to_id = replyToId
+                            )
+                        )
+                    }
+                } catch (e: Exception) {
+                    // Handled gracefully; local message saved
+                }
+            }
+        }
+
         return message
+    }
+
+    private fun startPeriodicSync() {
+        repoScope.launch {
+            while (true) {
+                try {
+                    syncPendingMessages()
+                } catch (e: Exception) {
+                    // Ignore transient errors
+                }
+                delay(3000)
+            }
+        }
+    }
+
+    suspend fun syncPendingMessages() {
+        val auth = authManager.authState.value
+        if (!auth.isLoggedIn || auth.accessToken.isNullOrEmpty()) return
+
+        val pending = try {
+            relayApi.getPendingMessages("Bearer ${auth.accessToken}")
+        } catch (e: Exception) {
+            emptyList()
+        }
+
+        for (item in pending) {
+            try {
+                val decryptedBytes = signalProtocolManager.decrypt(item.sender_user_id, item.ciphertext)
+                val plaintext = String(decryptedBytes, Charsets.UTF_8)
+
+                val peerId = "peer_${item.sender_user_id}"
+                val convId = createOrGetConversation(peerId, "User ${item.sender_user_id.take(6)}")
+
+                val msg = MessageEntity(
+                    id = item.id,
+                    conversationId = convId,
+                    senderId = peerId,
+                    type = when (item.message_type) {
+                        2 -> MessageType.CLIP
+                        3 -> MessageType.AUDIO
+                        else -> MessageType.TEXT
+                    },
+                    content = plaintext,
+                    status = MessageStatus.READ,
+                    replyToId = item.reply_to_id,
+                    timestamp = System.currentTimeMillis()
+                )
+                chatDao.insertMessage(msg)
+
+                val conv = chatDao.getConversation(convId)
+                conv?.let {
+                    chatDao.upsertConversation(
+                        it.copy(
+                            lastMessageSnippet = plaintext.take(50),
+                            lastMessageTimestamp = System.currentTimeMillis(),
+                            unreadCount = it.unreadCount + 1
+                        )
+                    )
+                }
+
+                relayApi.ackMessage("Bearer ${auth.accessToken}", item.id)
+            } catch (e: Exception) {
+                // Ignore decrypt errors for mismatched keys
+            }
+        }
     }
 
     suspend fun simulatePeerResponse(

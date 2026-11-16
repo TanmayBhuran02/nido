@@ -133,3 +133,14 @@ async def lookup_contacts(req: ContactLookupRequest, db: AsyncSession = Depends(
         RegisteredContact(phone=u.phone or "", username=u.username, user_id=str(u.id))
         for u in users
     ]
+
+@router.get("/user/{username}", response_model=RegisteredContact)
+async def get_user_by_username(username: str, db: AsyncSession = Depends(get_db)):
+    clean_username = username.lstrip("@").strip()
+    stmt = select(User).where(User.username == clean_username)
+    res = await db.execute(stmt)
+    user = res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return RegisteredContact(phone=user.phone or "", username=user.username, user_id=str(user.id))
+
