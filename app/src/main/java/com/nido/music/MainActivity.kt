@@ -175,7 +175,8 @@ fun NidoApp(playbackController: PlaybackController) {
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
         ) {
-            if (showBottomBar && currentSong != null) {
+            val isLibraryTab = currentRoute == TopLevelDestination.LIBRARY.route
+            if (isLibraryTab && currentSong != null) {
                 SimpleMiniPlayer(
                     song = currentSong!!,
                     isPlaying = isPlaying,

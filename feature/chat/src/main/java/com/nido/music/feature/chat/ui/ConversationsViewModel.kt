@@ -45,6 +45,12 @@ class ConversationsViewModel @Inject constructor(
         }
     }
 
+    fun renameConversation(conversationId: String, newTitle: String) {
+        viewModelScope.launch {
+            repository.renameConversation(conversationId, newTitle)
+        }
+    }
+
     fun createGroup(name: String, onCreated: (String) -> Unit) {
         viewModelScope.launch {
             val peerId = "group_${name.lowercase().replace(" ", "_")}"
@@ -60,9 +66,17 @@ class ConversationsViewModel @Inject constructor(
         artist: String,
         startMs: Long,
         endMs: Long,
+        filePath: String? = null,
         onComplete: (String) -> Unit
     ) {
         viewModelScope.launch {
+            var remoteUrl = ""
+            if (!filePath.isNullOrBlank()) {
+                val file = java.io.File(filePath)
+                if (file.exists()) {
+                    remoteUrl = repository.uploadClipFile(file)
+                }
+            }
             val convId = repository.createOrGetConversation(peerId, peerTitle, isGroup = false)
             val clipPayload = ClipPayload(
                 title = clipTitle,
@@ -70,10 +84,11 @@ class ConversationsViewModel @Inject constructor(
                 startOffsetMs = startMs,
                 endOffsetMs = endMs,
                 originalDurationMs = endMs - startMs,
-                remoteUrl = "",
+                remoteUrl = remoteUrl,
                 keyHex = "",
                 ivHex = "",
-                sha256 = ""
+                sha256 = "",
+                localUri = filePath
             )
             val jsonText = Json.encodeToString(clipPayload)
             repository.sendMessage(

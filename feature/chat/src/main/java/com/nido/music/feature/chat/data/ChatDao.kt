@@ -14,6 +14,9 @@ interface ChatDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertConversation(conversation: ConversationEntity)
 
+    @Query("UPDATE conversations SET title = :newTitle WHERE id = :convId")
+    suspend fun updateConversationTitle(convId: String, newTitle: String)
+
     @Query("SELECT * FROM messages WHERE conversationId = :convId ORDER BY timestamp ASC")
     fun getMessages(convId: String): Flow<List<MessageEntity>>
 

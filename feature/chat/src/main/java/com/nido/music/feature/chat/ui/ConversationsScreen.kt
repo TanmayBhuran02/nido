@@ -9,6 +9,7 @@ import android.provider.ContactsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -248,8 +249,12 @@ fun ConversationsScreen(
                     .padding(padding),
                 contentPadding = PaddingValues(bottom = 88.dp)
             ) {
-                items(conversations) { conv ->
-                    ConversationItem(conversation = conv, onClick = { onNavigateToChat(conv.id) })
+                items(conversations, key = { it.id }) { conv ->
+                    ConversationItem(
+                        conversation = conv,
+                        onClick = { onNavigateToChat(conv.id) },
+                        onRename = { newName -> viewModel.renameConversation(conv.id, newName) }
+                    )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
             }
@@ -697,15 +702,22 @@ fun ContactRow(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ConversationItem(
     conversation: ConversationEntity,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onRename: (String) -> Unit = {}
 ) {
+    var showRenameDialog by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { showRenameDialog = true }
+            )
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -753,10 +765,51 @@ fun ConversationItem(
             )
         }
 
+        IconButton(onClick = { showRenameDialog = true }) {
+            Icon(
+                Icons.Default.Edit,
+                contentDescription = "Rename User",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
         if (conversation.unreadCount > 0) {
             Badge {
                 Text(conversation.unreadCount.toString())
             }
         }
+    }
+
+    if (showRenameDialog) {
+        var newTitle by remember { mutableStateOf(conversation.title) }
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename User") },
+            text = {
+                OutlinedTextField(
+                    value = newTitle,
+                    onValueChange = { newTitle = it },
+                    label = { Text("Name on this device") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (newTitle.isNotBlank()) {
+                        onRename(newTitle.trim())
+                    }
+                    showRenameDialog = false
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

@@ -114,3 +114,19 @@ async def serve_file(blob_id: str):
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
     return FileResponse(target_path, media_type="application/octet-stream")
+
+@router.post("/clip")
+async def upload_clip_audio(file: UploadFile = File(...)):
+    clip_id = f"clip_{uuid.uuid4().hex}.m4a"
+    target_path = os.path.join(settings.LOCAL_STORAGE_DIR, clip_id)
+    with open(target_path, "wb") as f:
+        while chunk := await file.read(64 * 1024):
+            f.write(chunk)
+    return {"clip_id": clip_id, "url": f"/api/v1/media/clip/{clip_id}"}
+
+@router.get("/clip/{clip_id}")
+async def serve_clip_audio(clip_id: str):
+    target_path = os.path.join(settings.LOCAL_STORAGE_DIR, clip_id)
+    if not os.path.exists(target_path):
+        raise HTTPException(status_code=404, detail="Clip not found")
+    return FileResponse(target_path, media_type="audio/mp4")

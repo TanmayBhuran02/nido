@@ -81,14 +81,15 @@ fun NidoNavHost(
             ClipTrimmerScreen(
                 songId = songId,
                 onNavigateBack = { navController.popBackStack() },
-                onShareToChat = { peerId, peerTitle, clipTitle, artist, startMs, endMs ->
+                onShareToChat = { peerId, peerTitle, clipTitle, artist, startMs, endMs, filePath ->
                     conversationsViewModel.shareClipToPeer(
                         peerId = peerId,
                         peerTitle = peerTitle,
                         clipTitle = clipTitle,
                         artist = artist,
                         startMs = startMs,
-                        endMs = endMs
+                        endMs = endMs,
+                        filePath = filePath
                     ) { convId ->
                         navController.navigate("chat/$convId") {
                             popUpTo("clip_trimmer/{songId}") { inclusive = true }

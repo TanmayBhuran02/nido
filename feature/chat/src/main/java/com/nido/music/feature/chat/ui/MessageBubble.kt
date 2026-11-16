@@ -27,6 +27,8 @@ fun MessageBubble(
     message: MessageEntity,
     isMe: Boolean,
     clipPayload: ClipPayload? = null,
+    isClipPlaying: Boolean = false,
+    clipProgress: Float = 0f,
     onPlayClip: (ClipPayload) -> Unit = {},
     onFindFullSong: (String, String) -> Unit = { _, _ -> },
     onReply: (MessageEntity) -> Unit = {},
@@ -126,11 +128,20 @@ fun MessageBubble(
                     }
                 } else {
                     // Content rendering according to MessageType
-                    when (message.type) {
+                    val effectiveType = remember(message) {
+                        if (message.type == MessageType.TEXT && message.content.contains("\"packId\"") && message.content.contains("\"stickerId\"")) {
+                            MessageType.STICKER
+                        } else {
+                            message.type
+                        }
+                    }
+                    when (effectiveType) {
                         MessageType.CLIP -> {
                             if (clipPayload != null) {
                                 ClipBubbleContent(
                                     clip = clipPayload,
+                                    isPlaying = isClipPlaying,
+                                    progress = clipProgress,
                                     onPlayClip = { onPlayClip(clipPayload) },
                                     onFindFullSong = { onFindFullSong(clipPayload.title, clipPayload.artist) }
                                 )
@@ -339,10 +350,30 @@ fun LocationBubbleContent(contentJson: String) {
 @Composable
 fun VoiceNoteBubbleContent(contentJson: String) {
     var isPlaying by remember { mutableStateOf(false) }
-    var speed by remember { mutableFloatStateOf(1.0f) }
+    var progress by remember { mutableFloatStateOf(0.0f) }
+
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            val duration = 12000L
+            val start = System.currentTimeMillis() - (progress * duration).toLong()
+            while (isPlaying) {
+                val elapsed = System.currentTimeMillis() - start
+                val p = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
+                progress = p
+                if (p >= 1f) {
+                    isPlaying = false
+                    progress = 0f
+                    break
+                }
+                kotlinx.coroutines.delay(50)
+            }
+        }
+    }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(
@@ -353,50 +384,40 @@ fun VoiceNoteBubbleContent(contentJson: String) {
         ) {
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = "Voice note play/pause",
+                contentDescription = "Play/pause",
                 tint = MaterialTheme.colorScheme.onPrimary
             )
         }
 
         Spacer(modifier = Modifier.width(10.dp))
 
-        // Synthetic waveform visualizer bars
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .height(28.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            val heights = listOf(8.dp, 16.dp, 24.dp, 12.dp, 20.dp, 14.dp, 26.dp, 18.dp, 10.dp, 22.dp)
-            heights.forEach { h ->
-                Box(
-                    modifier = Modifier
-                        .width(3.dp)
-                        .height(h)
-                        .background(
-                            color = if (isPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(1.5.dp)
-                        )
+        Column(modifier = Modifier.weight(1f)) {
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(CircleShape),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val currentSecs = (progress * 12).toInt()
+                Text(
+                    text = String.format("%d:%02d", currentSecs / 60, currentSecs % 60),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "0:12",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        // Speed toggle button (1x -> 1.5x -> 2x)
-        FilledTonalButton(
-            onClick = {
-                speed = when (speed) {
-                    1.0f -> 1.5f
-                    1.5f -> 2.0f
-                    else -> 1.0f
-                }
-            },
-            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-            modifier = Modifier.height(28.dp)
-        ) {
-            Text("${speed}x", fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -435,19 +456,47 @@ fun VideoBubbleContent(contentJson: String) {
 fun StickerBubbleContent(
     contentJson: String
 ) {
+    val sticker = remember(contentJson) {
+        try {
+            Json.decodeFromString<StickerPayload>(contentJson)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    val displayEmoji = remember(sticker, contentJson) {
+        if (sticker != null) {
+            when (sticker.stickerId) {
+                "guitar" -> "🎸"
+                "headphones" -> "🎧"
+                "keyboard" -> "🎹"
+                "drums" -> "🥁"
+                "sax" -> "🎷"
+                "mic" -> "🎤"
+                "lightning" -> "⚡"
+                "fire" -> "🔥"
+                "vinyl" -> "💿"
+                "score" -> "🎼"
+                "trumpet" -> "🎺"
+                "music_note_1" -> "🎵"
+                else -> sticker.emojis.firstOrNull() ?: if (sticker.stickerId.length <= 4) sticker.stickerId else "🎵"
+            }
+        } else {
+            if (contentJson.length <= 4) contentJson else "🎵"
+        }
+    }
+
     Box(
-        modifier = Modifier.size(140.dp),
+        modifier = Modifier
+            .size(110.dp)
+            .padding(4.dp),
         contentAlignment = Alignment.Center
     ) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text("🎵 Sticker", fontSize = 24.sp)
-            }
-        }
+        Text(
+            text = displayEmoji,
+            fontSize = 64.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
     }
 }
 
@@ -469,54 +518,70 @@ fun ImageBubbleContent(content: String) {
 @Composable
 fun ClipBubbleContent(
     clip: ClipPayload,
+    isPlaying: Boolean,
+    progress: Float,
     onPlayClip: () -> Unit,
-    onFindFullSong: () -> Unit
+    onFindFullSong: () -> Unit = {}
 ) {
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(
-                onClick = onPlayClip,
+    val clipDurationMs = remember(clip) {
+        val d = clip.endOffsetMs - clip.startOffsetMs
+        if (d > 0) d else 15000L
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Play / Pause Button
+        IconButton(
+            onClick = onPlayClip,
+            modifier = Modifier
+                .size(42.dp)
+                .background(MaterialTheme.colorScheme.primary, CircleShape)
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = if (isPlaying) "Pause Clip" else "Play Clip",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Progress line + duration
+        Column(modifier = Modifier.weight(1f)) {
+            LinearProgressIndicator(
+                progress = { progress },
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(MaterialTheme.colorScheme.primary)
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(CircleShape),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Play Clip",
-                    tint = MaterialTheme.colorScheme.onPrimary
-                )
-            }
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
+                val currentSecs = (progress * clipDurationMs / 1000).toInt()
+                val totalSecs = (clipDurationMs / 1000).toInt()
                 Text(
-                    text = clip.title,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    maxLines = 1
-                )
-                Text(
-                    text = "from: ${clip.artist}",
-                    fontSize = 12.sp,
+                    text = String.format("%d:%02d", currentSecs / 60, currentSecs % 60),
+                    fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "Clip: ${(clip.endOffsetMs - clip.startOffsetMs) / 1000}s",
+                    text = String.format("%d:%02d", totalSecs / 60, totalSecs % 60),
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = onFindFullSong,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors()
-        ) {
-            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Find full song", fontSize = 12.sp)
         }
     }
 }

@@ -112,7 +112,18 @@ data class PendingMessageOut(
     val created_at: String
 )
 
+@Serializable
+data class ClipUploadResponse(
+    val clip_id: String,
+    val url: String
+)
+
 interface ChatRelayApi {
+    @retrofit2.http.Multipart
+    @POST("/api/v1/media/clip")
+    suspend fun uploadClip(
+        @retrofit2.http.Part file: okhttp3.MultipartBody.Part
+    ): ClipUploadResponse
     @POST("/api/v1/auth/register")
     suspend fun register(@Body req: RegisterRequest): AuthResponse
 

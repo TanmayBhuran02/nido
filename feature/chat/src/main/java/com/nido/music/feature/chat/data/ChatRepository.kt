@@ -3,6 +3,9 @@ package com.nido.music.feature.chat.data
 import com.nido.music.core.crypto.SignalProtocolManager
 import com.nido.music.core.network.relay.ChatRelayApi
 import com.nido.music.core.network.relay.SendMessageRequest
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -205,7 +208,11 @@ class ChatRepository @Inject constructor(
                                     MessageType.TEXT -> 1
                                     MessageType.CLIP -> 2
                                     MessageType.AUDIO -> 3
-                                    else -> 1
+                                    MessageType.LOCATION -> 4
+                                    MessageType.STICKER -> 5
+                                    MessageType.IMAGE -> 6
+                                    MessageType.VIDEO -> 7
+                                    MessageType.DOC -> 8
                                 },
                                 reply_to_id = replyToId
                             )
@@ -271,15 +278,32 @@ class ChatRepository @Inject constructor(
                 val convTitle = if (item.sender_username != null) "@${item.sender_username}" else "User ${item.sender_user_id.take(6)}"
                 val convId = createOrGetConversation(peerId, convTitle)
 
+                val detectedType = when (item.message_type) {
+                    2 -> MessageType.CLIP
+                    3 -> MessageType.AUDIO
+                    4 -> MessageType.LOCATION
+                    5 -> MessageType.STICKER
+                    6 -> MessageType.IMAGE
+                    7 -> MessageType.VIDEO
+                    8 -> MessageType.DOC
+                    else -> {
+                        if (plaintext.contains("\"packId\"") && plaintext.contains("\"stickerId\"")) {
+                            MessageType.STICKER
+                        } else if (plaintext.contains("\"latitude\"") && plaintext.contains("\"longitude\"")) {
+                            MessageType.LOCATION
+                        } else if (plaintext.contains("\"startOffsetMs\"") && plaintext.contains("\"endOffsetMs\"")) {
+                            MessageType.CLIP
+                        } else {
+                            MessageType.TEXT
+                        }
+                    }
+                }
+
                 val msg = MessageEntity(
                     id = item.id,
                     conversationId = convId,
                     senderId = peerId,
-                    type = when (item.message_type) {
-                        2 -> MessageType.CLIP
-                        3 -> MessageType.AUDIO
-                        else -> MessageType.TEXT
-                    },
+                    type = detectedType,
                     content = plaintext,
                     status = MessageStatus.READ,
                     replyToId = item.reply_to_id,
@@ -287,11 +311,22 @@ class ChatRepository @Inject constructor(
                 )
                 chatDao.insertMessage(msg)
 
+                val snippet = when (detectedType) {
+                    MessageType.TEXT -> plaintext.take(50)
+                    MessageType.AUDIO -> "[Voice Note]"
+                    MessageType.CLIP -> "[Music Clip]"
+                    MessageType.LOCATION -> "[Location]"
+                    MessageType.STICKER -> "[Sticker]"
+                    MessageType.IMAGE -> "[Image]"
+                    MessageType.VIDEO -> "[Video]"
+                    MessageType.DOC -> "[Document]"
+                }
+
                 val conv = chatDao.getConversation(convId)
                 conv?.let {
                     chatDao.upsertConversation(
                         it.copy(
-                            lastMessageSnippet = plaintext.take(50),
+                            lastMessageSnippet = snippet,
                             lastMessageTimestamp = System.currentTimeMillis(),
                             unreadCount = it.unreadCount + 1
                         )
@@ -343,6 +378,10 @@ class ChatRepository @Inject constructor(
         )
     }
 
+    suspend fun renameConversation(conversationId: String, newTitle: String) {
+        chatDao.updateConversationTitle(conversationId, newTitle)
+    }
+
     suspend fun editMessage(messageId: String, newContent: String) {
         chatDao.editMessage(messageId, newContent)
     }
@@ -365,5 +404,18 @@ class ChatRepository @Inject constructor(
 
     fun getMediaGallery(conversationId: String): Flow<List<MessageEntity>> {
         return chatDao.getMediaGalleryMessages(conversationId)
+    }
+
+    suspend fun uploadClipFile(file: java.io.File): String {
+        return try {
+            val mediaType = "audio/mp4".toMediaType()
+            val reqBody = file.asRequestBody(mediaType)
+            val part = MultipartBody.Part.createFormData("file", file.name, reqBody)
+            val res = relayApi.uploadClip(part)
+            "http://192.168.0.109:8000${res.url}"
+        } catch (e: Exception) {
+            e.printStackTrace()
+            ""
+        }
     }
 }

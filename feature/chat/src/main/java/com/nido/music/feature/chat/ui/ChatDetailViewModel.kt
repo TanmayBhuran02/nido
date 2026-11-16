@@ -1,18 +1,28 @@
 package com.nido.music.feature.chat.ui
 
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nido.music.feature.chat.data.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
 class ChatDetailViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: ChatRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -27,6 +37,160 @@ class ChatDetailViewModel @Inject constructor(
 
     private val _isPeerTyping = MutableStateFlow(false)
     val isPeerTyping: StateFlow<Boolean> = _isPeerTyping.asStateFlow()
+
+    private var mediaPlayer: MediaPlayer? = null
+    private var progressJob: Job? = null
+
+    private val _playingClipId = MutableStateFlow<String?>(null)
+    val playingClipId: StateFlow<String?> = _playingClipId.asStateFlow()
+
+    private val _clipPlaybackProgress = MutableStateFlow(0f)
+    val clipPlaybackProgress: StateFlow<Float> = _clipPlaybackProgress.asStateFlow()
+
+    fun togglePlayClip(messageId: String, clip: ClipPayload) {
+        if (_playingClipId.value == messageId) {
+            mediaPlayer?.let { player ->
+                if (player.isPlaying) {
+                    player.pause()
+                    progressJob?.cancel()
+                    _playingClipId.value = null
+                    return
+                }
+            }
+        }
+
+        stopAudioPlayback()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            var localFileToPlay: File? = null
+
+            // 1. If localUri exists on this device (e.g. sender)
+            if (!clip.localUri.isNullOrBlank()) {
+                val candidate = File(clip.localUri)
+                if (candidate.exists() && candidate.length() > 0) {
+                    localFileToPlay = candidate
+                }
+            }
+
+            // 2. If receiver or localUri not on this phone, fetch remoteUrl
+            if (localFileToPlay == null && clip.remoteUrl.isNotBlank()) {
+                val resolvedUrl = if (clip.remoteUrl.startsWith("http")) {
+                    clip.remoteUrl
+                } else {
+                    "http://192.168.0.109:8000${clip.remoteUrl}"
+                }
+
+                val clipId = clip.remoteUrl.substringAfterLast("/")
+                val cacheDir = File(context.cacheDir, "shared_clips").apply { mkdirs() }
+                val targetFile = File(cacheDir, clipId)
+
+                if (targetFile.exists() && targetFile.length() > 0) {
+                    localFileToPlay = targetFile
+                } else {
+                    try {
+                        val client = okhttp3.OkHttpClient.Builder()
+                            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                            .build()
+                        val request = okhttp3.Request.Builder().url(resolvedUrl).build()
+                        val response = client.newCall(request).execute()
+                        if (response.isSuccessful) {
+                            val body = response.body
+                            if (body != null) {
+                                val tempFile = File(cacheDir, "${clipId}.tmp")
+                                tempFile.outputStream().use { out ->
+                                    body.byteStream().copyTo(out)
+                                }
+                                tempFile.renameTo(targetFile)
+                                if (targetFile.exists() && targetFile.length() > 0) {
+                                    localFileToPlay = targetFile
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+
+            if (localFileToPlay == null || !localFileToPlay.exists()) {
+                return@launch
+            }
+
+            withContext(Dispatchers.Main) {
+                try {
+                    val player = MediaPlayer().apply {
+                        setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .setUsage(AudioAttributes.USAGE_MEDIA)
+                                .build()
+                        )
+                        setDataSource(localFileToPlay.absolutePath)
+                        setOnPreparedListener { mp ->
+                            mp.start()
+                            _playingClipId.value = messageId
+                            startProgressTracker(mp, messageId)
+                        }
+                        setOnCompletionListener {
+                            stopAudioPlayback()
+                        }
+                        setOnErrorListener { _, _, _ ->
+                            stopAudioPlayback()
+                            true
+                        }
+                        prepareAsync()
+                    }
+                    mediaPlayer = player
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    stopAudioPlayback()
+                }
+            }
+        }
+    }
+
+    private fun startProgressTracker(player: MediaPlayer, messageId: String) {
+        progressJob?.cancel()
+        progressJob = viewModelScope.launch {
+            val duration = player.duration.coerceAtLeast(1).toFloat()
+            while (player.isPlaying && _playingClipId.value == messageId) {
+                val current = player.currentPosition.toFloat()
+                _clipPlaybackProgress.value = (current / duration).coerceIn(0f, 1f)
+                delay(50)
+            }
+        }
+    }
+
+    fun stopAudioPlayback() {
+        progressJob?.cancel()
+        progressJob = null
+        mediaPlayer?.let {
+            try {
+                if (it.isPlaying) it.stop()
+                it.reset()
+                it.release()
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+        mediaPlayer = null
+        _playingClipId.value = null
+        _clipPlaybackProgress.value = 0f
+    }
+
+    fun renameConversation(newTitle: String) {
+        if (newTitle.isBlank()) return
+        viewModelScope.launch {
+            repository.renameConversation(conversationId, newTitle.trim())
+            loadConversation()
+        }
+    }
+
+    override fun onCleared() {
+        stopAudioPlayback()
+        super.onCleared()
+    }
 
     init {
         loadConversation()

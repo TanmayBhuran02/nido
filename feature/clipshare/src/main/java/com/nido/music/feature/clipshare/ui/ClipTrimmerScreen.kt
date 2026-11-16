@@ -113,7 +113,7 @@ private val TextSecondary: Color
 fun ClipTrimmerScreen(
     songId: Long,
     onNavigateBack: () -> Unit = {},
-    onShareToChat: ((peerId: String, peerTitle: String, clipTitle: String, artist: String, startMs: Long, endMs: Long) -> Unit)? = null,
+    onShareToChat: ((peerId: String, peerTitle: String, clipTitle: String, artist: String, startMs: Long, endMs: Long, filePath: String) -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: ClipTrimmerViewModel = hiltViewModel()
 ) {
@@ -525,7 +525,7 @@ fun ShareClipBottomSheet(
     contacts: List<ClipContact>,
     hasContactsPermission: Boolean,
     onRequestPermission: () -> Unit,
-    onShareToChat: ((peerId: String, peerTitle: String, clipTitle: String, artist: String, startMs: Long, endMs: Long) -> Unit)? = null,
+    onShareToChat: ((peerId: String, peerTitle: String, clipTitle: String, artist: String, startMs: Long, endMs: Long, filePath: String) -> Unit)? = null,
     onDismissRequest: () -> Unit
 ) {
     val context = LocalContext.current
@@ -616,7 +616,7 @@ fun ShareClipBottomSheet(
                 Surface(
                     onClick = {
                         if (onShareToChat != null) {
-                            onShareToChat("peer_${cleanQuery.lowercase()}", "@$cleanQuery", songTitle, artistName, startMs, endMs)
+                            onShareToChat("peer_${cleanQuery.lowercase()}", "@$cleanQuery", songTitle, artistName, startMs, endMs, filePath)
                         } else {
                             shareClipToContact(context, filePath, ClipContact("@$cleanQuery", "", true, "@$cleanQuery"), songTitle)
                         }
@@ -682,7 +682,7 @@ fun ShareClipBottomSheet(
                                     "peer_${contact.name.lowercase().replace(" ", "_")}"
                                 }
                                 val peerTitle = contact.username ?: contact.name
-                                onShareToChat(cleanPeerId, peerTitle, songTitle, artistName, startMs, endMs)
+                                onShareToChat(cleanPeerId, peerTitle, songTitle, artistName, startMs, endMs, filePath)
                             } else {
                                 shareClipToContact(context, filePath, contact, songTitle)
                             }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -61,7 +62,15 @@ fun ChatDetailScreen(
     val conversation by viewModel.conversation.collectAsState()
     val allMessages by viewModel.messages.collectAsState()
     val isPeerTyping by viewModel.isPeerTyping.collectAsState()
+    val playingClipId by viewModel.playingClipId.collectAsState()
+    val clipPlaybackProgress by viewModel.clipPlaybackProgress.collectAsState()
     val peerName = conversation?.title ?: "Chat"
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.stopAudioPlayback()
+        }
+    }
 
     var inputText by remember { mutableStateOf("") }
     var replyingToMessage by remember { mutableStateOf<MessageEntity?>(null) }
@@ -75,6 +84,7 @@ fun ChatDetailScreen(
     var showLocationDialog by remember { mutableStateOf(false) }
     var showStickersSheet by remember { mutableStateOf(false) }
     var showMediaGallerySheet by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
 
     // Audio recording state
     var isRecordingAudio by remember { mutableStateOf(false) }
@@ -110,6 +120,14 @@ fun ChatDetailScreen(
         }
     }
 
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(displayedMessages.size) {
+        if (displayedMessages.isNotEmpty()) {
+            listState.animateScrollToItem(displayedMessages.size - 1)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -127,9 +145,18 @@ fun ChatDetailScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     } else {
-                        Column {
+                        Column(
+                            modifier = Modifier.clickable { showRenameDialog = true }
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(peerName, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = "Rename User",
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Icon(
                                     Icons.Default.Lock,
@@ -139,7 +166,7 @@ fun ChatDetailScreen(
                                 )
                             }
                             Text(
-                                text = if (isPeerTyping) "typing..." else "Online",
+                                text = if (isPeerTyping) "typing..." else "Online (Tap to rename)",
                                 fontSize = 12.sp,
                                 color = if (isPeerTyping) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -286,6 +313,7 @@ fun ChatDetailScreen(
         }
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
@@ -305,7 +333,11 @@ fun ChatDetailScreen(
                     message = msg,
                     isMe = isMe,
                     clipPayload = parsedClip,
-                    onPlayClip = { /* inline audio play */ },
+                    isClipPlaying = (playingClipId == msg.id),
+                    clipProgress = if (playingClipId == msg.id) clipPlaybackProgress else 0f,
+                    onPlayClip = { clip ->
+                        viewModel.togglePlayClip(msg.id, clip)
+                    },
                     onFindFullSong = { _, _ -> /* find full song */ },
                     onReply = { replyingToMessage = it },
                     onForward = { messageToForward = it },
@@ -406,21 +438,53 @@ fun ChatDetailScreen(
                         Text("Import Pack")
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    listOf("🎵 Music Vibes", "🎧 Audiophile", "⚡ Beats", "⭐ Favorites").forEach { packName ->
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier
-                                .size(72.dp)
-                                .clickable {
-                                    showStickersSheet = false
-                                    viewModel.sendSticker(Json.encodeToString(StickerPayload("nido_default", "music_note_1")))
-                                }
+                Spacer(modifier = Modifier.height(12.dp))
+                val musicStickers = listOf(
+                    "🎵" to "music_note_1",
+                    "🎸" to "guitar",
+                    "🎧" to "headphones",
+                    "🎹" to "keyboard",
+                    "🥁" to "drums",
+                    "🎷" to "sax",
+                    "🎤" to "mic",
+                    "⚡" to "lightning",
+                    "🔥" to "fire",
+                    "💿" to "vinyl",
+                    "🎼" to "score",
+                    "🎺" to "trumpet"
+                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    musicStickers.chunked(4).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceAround
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(packName.take(4), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            row.forEach { (emoji, stickerId) ->
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier
+                                        .size(68.dp)
+                                        .clickable {
+                                            showStickersSheet = false
+                                            viewModel.sendSticker(
+                                                Json.encodeToString(
+                                                    StickerPayload(
+                                                        packId = "nido_music",
+                                                        stickerId = stickerId,
+                                                        emojis = listOf(emoji)
+                                                    )
+                                                )
+                                            )
+                                        }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(emoji, fontSize = 32.sp)
+                                    }
+                                }
                             }
                         }
                     }
@@ -475,6 +539,39 @@ fun ChatDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { messageToEdit = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Rename User Dialog
+    if (showRenameDialog) {
+        var newTitle by remember { mutableStateOf(peerName) }
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename User") },
+            text = {
+                OutlinedTextField(
+                    value = newTitle,
+                    onValueChange = { newTitle = it },
+                    label = { Text("Name on this device") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (newTitle.isNotBlank()) {
+                        viewModel.renameConversation(newTitle.trim())
+                    }
+                    showRenameDialog = false
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
                     Text("Cancel")
                 }
             }

@@ -72,10 +72,11 @@ data class ClipPayload(
     val startOffsetMs: Long,
     val endOffsetMs: Long,
     val originalDurationMs: Long,
-    val remoteUrl: String,
-    val keyHex: String,
-    val ivHex: String,
-    val sha256: String
+    val remoteUrl: String = "",
+    val keyHex: String = "",
+    val ivHex: String = "",
+    val sha256: String = "",
+    val localUri: String? = null
 )
 
 @Serializable
