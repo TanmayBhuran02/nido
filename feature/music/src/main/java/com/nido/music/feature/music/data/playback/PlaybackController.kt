@@ -12,6 +12,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import com.nido.music.core.common.UserPreferencesRepository
 import com.nido.music.core.database.dao.QueueDao
 import com.nido.music.core.database.dao.SongDao
 import com.nido.music.core.database.entity.QueueItemEntity
@@ -23,6 +24,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,7 +33,8 @@ import javax.inject.Singleton
 class PlaybackController @Inject constructor(
     @ApplicationContext private val context: Context,
     private val songDao: SongDao,
-    private val queueDao: QueueDao
+    private val queueDao: QueueDao,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -62,13 +65,21 @@ class PlaybackController @Inject constructor(
     private val _sleepTimerRemaining = MutableStateFlow<Long?>(null)
     val sleepTimerRemaining: StateFlow<Long?> = _sleepTimerRemaining.asStateFlow()
 
+    private var progressTick = 0
     private val handler = Handler(Looper.getMainLooper())
     private val progressRunnable = object : Runnable {
         override fun run() {
             player?.let { p ->
                 if (p.isPlaying) {
-                    _currentPosition.value = p.currentPosition
-                    _duration.value = if (p.duration > 0) p.duration else _currentSong.value?.durationMs ?: 0L
+                    val pos = p.currentPosition
+                    val dur = if (p.duration > 0) p.duration else _currentSong.value?.durationMs ?: 0L
+                    _currentPosition.value = pos
+                    _duration.value = dur
+                    if (++progressTick % 6 == 0) {
+                        scope.launch(Dispatchers.IO) {
+                            userPreferencesRepository.savePosition(pos)
+                        }
+                    }
                 }
             }
             handler.postDelayed(this, 500)
@@ -78,7 +89,66 @@ class PlaybackController @Inject constructor(
     private var sleepTimerRunnable: Runnable? = null
 
     init {
+        restoreLastSession()
         initController()
+    }
+
+    private fun restoreLastSession() {
+        scope.launch(Dispatchers.IO) {
+            try {
+                val lastUri = userPreferencesRepository.lastSongUriFlow.first()
+                val lastPos = userPreferencesRepository.lastPositionMsFlow.first()
+                val lastShuffle = userPreferencesRepository.lastShuffleEnabledFlow.first()
+                val lastRepeat = userPreferencesRepository.lastRepeatModeFlow.first()
+                _shuffleEnabled.value = lastShuffle
+                _repeatMode.value = lastRepeat
+
+                val savedQueue = queueDao.getQueueSongs().first()
+                val song = if (!lastUri.isNullOrBlank()) {
+                    savedQueue.find { it.uri == lastUri } ?: songDao.getSongByUri(lastUri)
+                } else {
+                    savedQueue.firstOrNull()
+                }
+
+                if (song != null) {
+                    val queue = if (savedQueue.isNotEmpty()) savedQueue else listOf(song)
+                    _currentSong.value = song
+                    _currentQueue.value = queue
+                    _currentPosition.value = lastPos
+                    _duration.value = song.durationMs
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("PlaybackController", "Failed to restore playback session", e)
+            }
+        }
+    }
+
+    private fun applySessionToPlayer() {
+        val p = player ?: return
+        val song = _currentSong.value ?: return
+        val queue = _currentQueue.value.ifEmpty { listOf(song) }
+
+        p.shuffleModeEnabled = _shuffleEnabled.value
+        p.repeatMode = _repeatMode.value
+
+        if (p.mediaItemCount == 0) {
+            val mediaItems = queue.map { s ->
+                MediaItem.Builder()
+                    .setMediaId(s.uri)
+                    .setUri(Uri.parse(s.uri))
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(s.title)
+                            .setArtist(s.artist)
+                            .setAlbumTitle(s.album)
+                            .build()
+                    )
+                    .build()
+            }
+            val startIndex = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+            p.setMediaItems(mediaItems, startIndex, _currentPosition.value)
+            p.prepare()
+        }
     }
 
     private fun initController() {
@@ -88,14 +158,17 @@ class PlaybackController @Inject constructor(
         )
         controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         controllerFuture?.addListener({
-            try {
-                player = controllerFuture?.get()
-                setupPlayerListener()
-                handler.post(progressRunnable)
-                pendingPlayRequest?.invoke()
-                pendingPlayRequest = null
-            } catch (e: Exception) {
-                android.util.Log.e("PlaybackController", "Failed to connect to MediaController", e)
+            handler.post {
+                try {
+                    player = controllerFuture?.get()
+                    setupPlayerListener()
+                    applySessionToPlayer()
+                    handler.post(progressRunnable)
+                    pendingPlayRequest?.invoke()
+                    pendingPlayRequest = null
+                } catch (e: Exception) {
+                    android.util.Log.e("PlaybackController", "Failed to connect to MediaController", e)
+                }
             }
         }, MoreExecutors.directExecutor())
     }
@@ -132,16 +205,28 @@ class PlaybackController @Inject constructor(
                         if (dbSong != null) {
                             _currentSong.value = dbSong
                         }
+                        userPreferencesRepository.savePlaybackState(
+                            songUri = uriStr,
+                            positionMs = 0L,
+                            shuffleEnabled = _shuffleEnabled.value,
+                            repeatMode = _repeatMode.value
+                        )
                     }
                 }
             }
 
             override fun onShuffleModeEnabledChanged(shuffle: Boolean) {
                 _shuffleEnabled.value = shuffle
+                scope.launch(Dispatchers.IO) {
+                    userPreferencesRepository.saveShuffleEnabled(shuffle)
+                }
             }
 
             override fun onRepeatModeChanged(repeat: Int) {
                 _repeatMode.value = repeat
+                scope.launch(Dispatchers.IO) {
+                    userPreferencesRepository.saveRepeatMode(repeat)
+                }
             }
         })
     }
@@ -172,13 +257,30 @@ class PlaybackController @Inject constructor(
         p.prepare()
         p.play()
 
-        // Update queue in database
+        // Update queue in database & save state
         scope.launch(Dispatchers.IO) {
+            userPreferencesRepository.savePlaybackState(
+                songUri = song.uri,
+                positionMs = 0L,
+                shuffleEnabled = _shuffleEnabled.value,
+                repeatMode = _repeatMode.value
+            )
             val queueItems = fullList.mapIndexed { index, s ->
                 QueueItemEntity(position = index, songId = s.id)
             }
             queueDao.replaceQueue(queueItems)
         }
+    }
+
+    fun shufflePlay(songs: List<SongEntity>, startIndex: Int = 0) {
+        if (songs.isEmpty()) return
+        val shuffled = songs.shuffled()
+        _shuffleEnabled.value = true
+        player?.shuffleModeEnabled = true
+        scope.launch(Dispatchers.IO) {
+            userPreferencesRepository.saveShuffleEnabled(true)
+        }
+        playSong(shuffled[startIndex.coerceIn(0, shuffled.lastIndex)], shuffled)
     }
 
     fun togglePlayPause() {
@@ -198,6 +300,9 @@ class PlaybackController @Inject constructor(
     fun seekTo(positionMs: Long) {
         player?.seekTo(positionMs)
         _currentPosition.value = positionMs
+        scope.launch(Dispatchers.IO) {
+            userPreferencesRepository.savePosition(positionMs)
+        }
     }
 
     fun skipNext() {
@@ -209,22 +314,25 @@ class PlaybackController @Inject constructor(
     }
 
     fun toggleShuffle() {
-        player?.let { p ->
-            val nextState = !p.shuffleModeEnabled
-            p.shuffleModeEnabled = nextState
-            _shuffleEnabled.value = nextState
+        val nextState = !_shuffleEnabled.value
+        player?.shuffleModeEnabled = nextState
+        _shuffleEnabled.value = nextState
+        scope.launch(Dispatchers.IO) {
+            userPreferencesRepository.saveShuffleEnabled(nextState)
         }
     }
 
     fun toggleRepeat() {
-        player?.let { p ->
-            val nextMode = when (p.repeatMode) {
-                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                else -> Player.REPEAT_MODE_OFF
-            }
-            p.repeatMode = nextMode
-            _repeatMode.value = nextMode
+        val current = _repeatMode.value
+        val nextMode = when (current) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
+        player?.repeatMode = nextMode
+        _repeatMode.value = nextMode
+        scope.launch(Dispatchers.IO) {
+            userPreferencesRepository.saveRepeatMode(nextMode)
         }
     }
 

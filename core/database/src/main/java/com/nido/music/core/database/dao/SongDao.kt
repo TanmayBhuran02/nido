@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.nido.music.core.database.entity.SongEntity
 import kotlinx.coroutines.flow.Flow
@@ -13,6 +14,9 @@ interface SongDao {
 
     @Query("SELECT * FROM songs ORDER BY title COLLATE NOCASE ASC")
     fun getAllSongs(): Flow<List<SongEntity>>
+
+    @Query("SELECT * FROM songs")
+    suspend fun getAllSongsList(): List<SongEntity>
 
     @Query("SELECT * FROM songs WHERE id = :id")
     suspend fun getSongById(id: Long): SongEntity?
@@ -77,6 +81,52 @@ interface SongDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSong(song: SongEntity): Long
+
+    @Query("DELETE FROM songs WHERE id IN (:ids)")
+    suspend fun deleteSongsByIds(ids: List<Long>)
+
+    @Query("UPDATE songs SET dateAdded = :dateAdded WHERE id = :id")
+    suspend fun updateSongDateAdded(id: Long, dateAdded: Long)
+
+    @Transaction
+    suspend fun deduplicateSongs(): Int {
+        val allSongs = getAllSongsList()
+        if (allSongs.isEmpty()) return 0
+
+        val seenUris = mutableMapOf<String, Long>()
+        val seenMeta = mutableMapOf<String, Long>()
+        val idsToDelete = mutableListOf<Long>()
+
+        for (song in allSongs) {
+            val uriKey = song.uri.trim()
+            val normTitle = song.title.trim().lowercase()
+            val normArtist = song.artist.trim().lowercase()
+            val durSec = song.durationMs / 1000L
+            val metaKey = if (normTitle.isNotBlank() && normTitle != "unknown") {
+                "$normTitle|$normArtist|$durSec"
+            } else null
+
+            val existingUriId = seenUris[uriKey]
+            val existingMetaId = if (metaKey != null) seenMeta[metaKey] else null
+            val canonicalId = existingUriId ?: existingMetaId
+
+            if (canonicalId != null && canonicalId != song.id) {
+                idsToDelete.add(song.id)
+            } else {
+                seenUris[uriKey] = song.id
+                if (metaKey != null && !seenMeta.containsKey(metaKey)) {
+                    seenMeta[metaKey] = song.id
+                }
+            }
+        }
+
+        if (idsToDelete.isNotEmpty()) {
+            idsToDelete.chunked(400).forEach { chunk ->
+                deleteSongsByIds(chunk)
+            }
+        }
+        return idsToDelete.size
+    }
 
     @Query("DELETE FROM songs WHERE uri IN (:uris)")
     suspend fun deleteSongsByUris(uris: List<String>)

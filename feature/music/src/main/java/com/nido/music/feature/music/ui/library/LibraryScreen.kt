@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Folder
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -117,6 +119,9 @@ fun LibraryScreen(
     var isSearchActive by remember { mutableStateOf(false) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var newPlaylistTitle by remember { mutableStateOf("") }
+    var showRenamePlaylistDialog by remember { mutableStateOf(false) }
+    var renamePlaylistTitle by remember { mutableStateOf("") }
+    var playlistToRename by remember { mutableStateOf<com.nido.music.core.database.entity.PlaylistEntity?>(null) }
 
     val songs by viewModel.songs.collectAsState()
     val likedSongs by viewModel.likedSongs.collectAsState()
@@ -127,6 +132,8 @@ fun LibraryScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedPlaylistId by viewModel.selectedPlaylistId.collectAsState()
     val playlistSongs by viewModel.playlistSongs.collectAsState()
+    val sortConfig by viewModel.sortConfig.collectAsState()
+    val playlistSortConfig by viewModel.playlistSortConfig.collectAsState()
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -336,6 +343,17 @@ fun LibraryScreen(
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                if (songs.isNotEmpty()) {
+                                    item(key = "header_songs") {
+                                        LibraryActionHeader(
+                                            countText = "${songs.size} tracks",
+                                            onShuffle = { viewModel.shufflePlay(songs) },
+                                            sortConfig = sortConfig,
+                                            onSortSelected = { field, asc -> viewModel.setSortConfig(field, asc) },
+                                            onToggleDirection = { viewModel.toggleSortDirection() }
+                                        )
+                                    }
+                                }
                                 items(songs, key = { it.id }) { song ->
                                     SongRowItem(
                                         song = song,
@@ -368,6 +386,24 @@ fun LibraryScreen(
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 16.sp
                                         )
+                                        if (currentPlaylist != null) {
+                                            Spacer(modifier = Modifier.size(4.dp))
+                                            IconButton(
+                                                onClick = {
+                                                    playlistToRename = currentPlaylist
+                                                    renamePlaylistTitle = currentPlaylist.name
+                                                    showRenamePlaylistDialog = true
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Edit,
+                                                    contentDescription = "Rename Playlist",
+                                                    tint = AmberPrimary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                     if (playlistSongs.isEmpty()) {
                                         Box(
@@ -382,6 +418,15 @@ fun LibraryScreen(
                                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                             verticalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
+                                            item(key = "header_playlist_detail") {
+                                                LibraryActionHeader(
+                                                    countText = "${playlistSongs.size} tracks",
+                                                    onShuffle = { viewModel.shufflePlay(playlistSongs) },
+                                                    sortConfig = playlistSortConfig,
+                                                    onSortSelected = { field, asc -> viewModel.setPlaylistSortConfig(field, asc) },
+                                                    onToggleDirection = { viewModel.togglePlaylistSortDirection() }
+                                                )
+                                            }
                                             items(playlistSongs, key = { it.id }) { song ->
                                                 SongRowItem(
                                                     song = song,
@@ -399,18 +444,53 @@ fun LibraryScreen(
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     item {
-                                        Button(
-                                            onClick = {
-                                                newPlaylistTitle = ""
-                                                showCreatePlaylistDialog = true
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = AmberPrimary),
-                                            shape = RoundedCornerShape(14.dp),
-                                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Icon(Icons.Default.Add, contentDescription = null, tint = CanvasFloor)
-                                            Spacer(modifier = Modifier.size(8.dp))
-                                            Text("Create New Playlist", color = CanvasFloor, fontWeight = FontWeight.Bold)
+                                            Button(
+                                                onClick = {
+                                                    newPlaylistTitle = ""
+                                                    showCreatePlaylistDialog = true
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = AmberPrimary),
+                                                shape = RoundedCornerShape(14.dp),
+                                                modifier = Modifier.weight(1f).height(48.dp)
+                                            ) {
+                                                Icon(Icons.Default.Add, contentDescription = null, tint = CanvasFloor)
+                                                Spacer(modifier = Modifier.size(8.dp))
+                                                Text("Create Playlist", color = CanvasFloor, fontWeight = FontWeight.Bold)
+                                            }
+
+                                            if (songs.isNotEmpty()) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .height(48.dp)
+                                                        .clip(RoundedCornerShape(14.dp))
+                                                        .background(AmberPrimary.copy(alpha = 0.15f))
+                                                        .border(1.dp, AmberPrimary.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                                                        .clickable { viewModel.shufflePlay(songs) }
+                                                        .padding(horizontal = 14.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Shuffle,
+                                                            contentDescription = "Shuffle",
+                                                            tint = AmberPrimary,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.size(6.dp))
+                                                        Text(
+                                                            text = "Shuffle",
+                                                            color = AmberPrimary,
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                     items(playlists, key = { it.id }) { playlist ->
@@ -451,6 +531,20 @@ fun LibraryScreen(
                                                     fontSize = 12.sp
                                                 )
                                             }
+                                            IconButton(
+                                                onClick = {
+                                                    playlistToRename = playlist
+                                                    renamePlaylistTitle = playlist.name
+                                                    showRenamePlaylistDialog = true
+                                                }
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Edit,
+                                                    contentDescription = "Rename",
+                                                    tint = Color.White.copy(alpha = 0.6f),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
                                             IconButton(onClick = { viewModel.deletePlaylist(playlist.id) }) {
                                                 Icon(
                                                     imageVector = Icons.Default.Delete,
@@ -479,6 +573,15 @@ fun LibraryScreen(
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
+                                    item(key = "header_liked") {
+                                        LibraryActionHeader(
+                                            countText = "${likedSongs.size} liked tracks",
+                                            onShuffle = { viewModel.shufflePlay(likedSongs) },
+                                            sortConfig = sortConfig,
+                                            onSortSelected = { field, asc -> viewModel.setSortConfig(field, asc) },
+                                            onToggleDirection = { viewModel.toggleSortDirection() }
+                                        )
+                                    }
                                     items(likedSongs, key = { it.id }) { song ->
                                         SongRowItem(
                                             song = song,
@@ -496,6 +599,14 @@ fun LibraryScreen(
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
+                                if (albums.isNotEmpty() && songs.isNotEmpty()) {
+                                    item(key = "header_albums") {
+                                        LibraryActionHeader(
+                                            countText = "${albums.size} albums",
+                                            onShuffle = { viewModel.shufflePlay(songs) }
+                                        )
+                                    }
+                                }
                                 items(albums) { albumName ->
                                     CategoryRowItem(
                                         icon = Icons.Default.Album,
@@ -513,6 +624,14 @@ fun LibraryScreen(
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
+                                if (artists.isNotEmpty() && songs.isNotEmpty()) {
+                                    item(key = "header_artists") {
+                                        LibraryActionHeader(
+                                            countText = "${artists.size} artists",
+                                            onShuffle = { viewModel.shufflePlay(songs) }
+                                        )
+                                    }
+                                }
                                 items(artists) { artistName ->
                                     CategoryRowItem(
                                         icon = Icons.Default.Person,
@@ -530,6 +649,14 @@ fun LibraryScreen(
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
+                                if (folders.isNotEmpty() && songs.isNotEmpty()) {
+                                    item(key = "header_folders") {
+                                        LibraryActionHeader(
+                                            countText = "${folders.size} folders",
+                                            onShuffle = { viewModel.shufflePlay(songs) }
+                                        )
+                                    }
+                                }
                                 items(folders) { folderPath ->
                                     CategoryRowItem(
                                         icon = Icons.Default.Folder,
@@ -623,6 +750,46 @@ fun LibraryScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showCreatePlaylistDialog = false }) {
+                        Text("Cancel", color = TextSecondary)
+                    }
+                }
+            )
+        }
+
+        // Rename Playlist Dialog
+        if (showRenamePlaylistDialog && playlistToRename != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    showRenamePlaylistDialog = false
+                    playlistToRename = null
+                },
+                title = { Text("Rename Playlist", color = TextPrimary) },
+                text = {
+                    OutlinedTextField(
+                        value = renamePlaylistTitle,
+                        onValueChange = { renamePlaylistTitle = it },
+                        label = { Text("Playlist Name") },
+                        singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (renamePlaylistTitle.isNotBlank()) {
+                                viewModel.renamePlaylist(playlistToRename!!.id, renamePlaylistTitle)
+                            }
+                            showRenamePlaylistDialog = false
+                            playlistToRename = null
+                        }
+                    ) {
+                        Text("Save", color = AmberPrimary)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showRenamePlaylistDialog = false
+                        playlistToRename = null
+                    }) {
                         Text("Cancel", color = TextSecondary)
                     }
                 }
@@ -768,6 +935,168 @@ private fun CategoryRowItem(
                 fontSize = 12.sp,
                 maxLines = 1
             )
+        }
+    }
+}
+
+@Composable
+private fun LibraryActionHeader(
+    countText: String,
+    onShuffle: () -> Unit,
+    sortConfig: SortConfig? = null,
+    onSortSelected: ((SortField, Boolean) -> Unit)? = null,
+    onToggleDirection: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    var showSortMenu by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Shuffle Pill Button
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(AmberPrimary.copy(alpha = 0.15f))
+                .border(1.dp, AmberPrimary.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                .clickable { onShuffle() }
+                .padding(horizontal = 14.dp, vertical = 7.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Shuffle,
+                    contentDescription = "Shuffle",
+                    tint = AmberPrimary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.size(6.dp))
+                Text(
+                    text = "Shuffle",
+                    color = AmberPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.size(12.dp))
+
+        Text(
+            text = countText,
+            color = TextSecondary,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f)
+        )
+
+        // Sort Control with Asc/Desc toggle
+        if (sortConfig != null && onSortSelected != null) {
+            Box {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.05f))
+                        .border(0.5.dp, EdgeSpecular, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Field selector button
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { showSortMenu = true }
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Sort,
+                            contentDescription = "Sort",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.size(4.dp))
+                        Text(
+                            text = sortConfig.field.label,
+                            color = TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // Quick Asc/Desc Toggle Button
+                    val directionText = when (sortConfig.field) {
+                        SortField.TITLE, SortField.ARTIST -> if (sortConfig.ascending) "A-Z ↑" else "Z-A ↓"
+                        SortField.DATE_ADDED -> if (sortConfig.ascending) "OLD ↑" else "NEW ↓"
+                        SortField.DURATION -> if (sortConfig.ascending) "MIN ↑" else "MAX ↓"
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(AmberPrimary.copy(alpha = 0.12f))
+                            .clickable { onToggleDirection?.invoke() }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = directionText,
+                            color = AmberPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                DropdownMenu(
+                    expanded = showSortMenu,
+                    onDismissRequest = { showSortMenu = false }
+                ) {
+                    SortField.entries.forEach { field ->
+                        val ascText = when (field) {
+                            SortField.TITLE, SortField.ARTIST -> "${field.label} (A → Z)"
+                            SortField.DATE_ADDED -> "Date Added (Oldest first)"
+                            SortField.DURATION -> "Duration (Shortest first)"
+                        }
+                        val descText = when (field) {
+                            SortField.TITLE, SortField.ARTIST -> "${field.label} (Z → A)"
+                            SortField.DATE_ADDED -> "Date Added (Newest first)"
+                            SortField.DURATION -> "Duration (Longest first)"
+                        }
+                        // ASC option
+                        val isAscSelected = sortConfig.field == field && sortConfig.ascending
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = ascText,
+                                    color = if (isAscSelected) AmberPrimary else TextPrimary,
+                                    fontWeight = if (isAscSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            onClick = {
+                                onSortSelected(field, true)
+                                showSortMenu = false
+                            }
+                        )
+                        // DESC option
+                        val isDescSelected = sortConfig.field == field && !sortConfig.ascending
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = descText,
+                                    color = if (isDescSelected) AmberPrimary else TextPrimary,
+                                    fontWeight = if (isDescSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            onClick = {
+                                onSortSelected(field, false)
+                                showSortMenu = false
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }
