@@ -4,12 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nido.music.feature.chat.data.ChatAuthManager
 import com.nido.music.feature.chat.data.ChatRepository
+import com.nido.music.feature.chat.data.ClipPayload
 import com.nido.music.feature.chat.data.ConversationEntity
+import com.nido.music.feature.chat.data.MessageType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
 @HiltViewModel
@@ -46,6 +50,38 @@ class ConversationsViewModel @Inject constructor(
             val peerId = "group_${name.lowercase().replace(" ", "_")}"
             val id = repository.createOrGetConversation(peerId, name, isGroup = true)
             onCreated(id)
+        }
+    }
+
+    fun shareClipToPeer(
+        peerId: String,
+        peerTitle: String,
+        clipTitle: String,
+        artist: String,
+        startMs: Long,
+        endMs: Long,
+        onComplete: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val convId = repository.createOrGetConversation(peerId, peerTitle, isGroup = false)
+            val clipPayload = ClipPayload(
+                title = clipTitle,
+                artist = artist,
+                startOffsetMs = startMs,
+                endOffsetMs = endMs,
+                originalDurationMs = endMs - startMs,
+                remoteUrl = "",
+                keyHex = "",
+                ivHex = "",
+                sha256 = ""
+            )
+            val jsonText = Json.encodeToString(clipPayload)
+            repository.sendMessage(
+                conversationId = convId,
+                text = jsonText,
+                type = MessageType.CLIP
+            )
+            onComplete(convId)
         }
     }
 }

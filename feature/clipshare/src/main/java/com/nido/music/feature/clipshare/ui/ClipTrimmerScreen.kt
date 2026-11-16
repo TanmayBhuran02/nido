@@ -1,7 +1,14 @@
 package com.nido.music.feature.clipshare.ui
 
+import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.provider.ContactsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import java.io.File
 import androidx.compose.foundation.background
@@ -17,31 +24,48 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -52,6 +76,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+
+data class ClipContact(
+    val name: String,
+    val phoneNumber: String,
+    val hasNido: Boolean = false,
+    val username: String? = null
+)
 
 private val AmberPrimary: Color
     @Composable
@@ -77,13 +108,17 @@ private val TextSecondary: Color
     @Composable
     get() = MaterialTheme.colorScheme.onSurfaceVariant
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClipTrimmerScreen(
     songId: Long,
     onNavigateBack: () -> Unit = {},
+    onShareToChat: ((peerId: String, peerTitle: String, clipTitle: String, artist: String, startMs: Long, endMs: Long) -> Unit)? = null,
     modifier: Modifier = Modifier,
     viewModel: ClipTrimmerViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
+
     LaunchedEffect(songId) {
         viewModel.loadSong(songId)
     }
@@ -94,6 +129,35 @@ fun ClipTrimmerScreen(
     val isPlayingPreview by viewModel.isPlayingPreview.collectAsState()
     val isExporting by viewModel.isExporting.collectAsState()
     val exportSuccess by viewModel.exportSuccess.collectAsState()
+
+    var showShareSheet by remember { mutableStateOf(false) }
+    var pendingShareAfterExport by remember { mutableStateOf(false) }
+
+    var hasContactsPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_CONTACTS
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasContactsPermission = granted
+    }
+
+    val contactsList = remember(hasContactsPermission) {
+        queryClipContacts(context)
+    }
+
+    LaunchedEffect(exportSuccess) {
+        if (exportSuccess != null && pendingShareAfterExport) {
+            pendingShareAfterExport = false
+            showShareSheet = true
+        }
+    }
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -337,49 +401,18 @@ fun ClipTrimmerScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (exportSuccess != null) {
-                    val context = LocalContext.current
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Clip saved successfully!",
-                            color = AmberPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = {
-                                try {
-                                    val file = File(exportSuccess!!)
-                                    val uri = FileProvider.getUriForFile(
-                                        context,
-                                        "${context.packageName}.fileprovider",
-                                        file
-                                    )
-                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "audio/mp4"
-                                        putExtra(Intent.EXTRA_STREAM, uri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(Intent.createChooser(sendIntent, "Share Clip"))
-                                } catch (_: Exception) {}
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AmberPrimary.copy(alpha = 0.2f)),
-                            shape = CircleShape
-                        ) {
-                            Text("Share via App...", color = AmberPrimary, fontSize = 13.sp)
-                        }
-                    }
-                }
-
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Action button
+                // Action button: Share To
                 Button(
-                    onClick = { viewModel.exportClip() },
+                    onClick = {
+                        if (exportSuccess != null) {
+                            showShareSheet = true
+                        } else {
+                            pendingShareAfterExport = true
+                            viewModel.exportClip()
+                        }
+                    },
                     enabled = !isExporting,
                     colors = ButtonDefaults.buttonColors(containerColor = AmberPrimary),
                     shape = CircleShape,
@@ -389,18 +422,42 @@ fun ClipTrimmerScreen(
                         .navigationBarsPadding()
                 ) {
                     if (isExporting) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.size(10.dp))
+                            Text(
+                                text = "Preparing Clip...",
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                        }
                     } else {
-                        Text(
-                            text = "Export Audio Clip",
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.size(8.dp))
+                            Text(
+                                text = "Share To",
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                        }
                     }
                 }
 
@@ -434,7 +491,390 @@ fun ClipTrimmerScreen(
                 )
             }
         }
+
+        // Share Contacts Bottom Sheet
+        if (showShareSheet && exportSuccess != null) {
+            ShareClipBottomSheet(
+                songTitle = song?.title ?: "Clip",
+                artistName = song?.artist ?: "Unknown Artist",
+                startMs = startMs,
+                endMs = endMs,
+                clipDurationSec = ((endMs - startMs) / 1000).toInt().coerceAtLeast(1),
+                filePath = exportSuccess!!,
+                contacts = contactsList,
+                hasContactsPermission = hasContactsPermission,
+                onRequestPermission = {
+                    permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                },
+                onShareToChat = onShareToChat,
+                onDismissRequest = { showShareSheet = false }
+            )
+        }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ShareClipBottomSheet(
+    songTitle: String,
+    artistName: String,
+    startMs: Long,
+    endMs: Long,
+    clipDurationSec: Int,
+    filePath: String,
+    contacts: List<ClipContact>,
+    hasContactsPermission: Boolean,
+    onRequestPermission: () -> Unit,
+    onShareToChat: ((peerId: String, peerTitle: String, clipTitle: String, artist: String, startMs: Long, endMs: Long) -> Unit)? = null,
+    onDismissRequest: () -> Unit
+) {
+    val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val nidoContacts = remember(contacts) {
+        contacts.filter { it.hasNido }
+    }
+
+    val filteredContacts = remember(nidoContacts, searchQuery) {
+        if (searchQuery.isBlank()) nidoContacts
+        else nidoContacts.filter {
+            it.name.contains(searchQuery, ignoreCase = true) ||
+            it.phoneNumber.contains(searchQuery) ||
+            (it.username?.contains(searchQuery, ignoreCase = true) == true)
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Share to Nido Contacts",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "$songTitle • ${clipDurationSec}s",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp
+                    )
+                }
+                IconButton(onClick = onDismissRequest) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Search Bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search Nido contacts or @username...", fontSize = 13.sp) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Custom search handle option if query doesn't match
+            val cleanQuery = searchQuery.trim().removePrefix("@")
+            if (cleanQuery.isNotEmpty() && filteredContacts.none { it.username?.equals("@$cleanQuery", ignoreCase = true) == true }) {
+                Surface(
+                    onClick = {
+                        if (onShareToChat != null) {
+                            onShareToChat("peer_${cleanQuery.lowercase()}", "@$cleanQuery", songTitle, artistName, startMs, endMs)
+                        } else {
+                            shareClipToContact(context, filePath, ClipContact("@$cleanQuery", "", true, "@$cleanQuery"), songTitle)
+                        }
+                        onDismissRequest()
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.size(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Share to @$cleanQuery",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Send clip in Nido chat",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Contacts List
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 380.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(filteredContacts, key = { it.name + it.phoneNumber }) { contact ->
+                    Surface(
+                        onClick = {
+                            if (onShareToChat != null) {
+                                val cleanPeerId = if (contact.username != null) {
+                                    "peer_${contact.username.removePrefix("@").lowercase().replace(" ", "_")}"
+                                } else {
+                                    "peer_${contact.name.lowercase().replace(" ", "_")}"
+                                }
+                                val peerTitle = contact.username ?: contact.name
+                                onShareToChat(cleanPeerId, peerTitle, songTitle, artistName, startMs, endMs)
+                            } else {
+                                shareClipToContact(context, filePath, contact, songTitle)
+                            }
+                            onDismissRequest()
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = contact.name.take(2).uppercase(),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.size(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = contact.name,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (contact.hasNido) {
+                                        Spacer(modifier = Modifier.size(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "Nido",
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = contact.username ?: contact.phoneNumber,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Share",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                if (filteredContacts.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No contacts found",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        }
+    }
+}
+
+private fun shareClipToContact(context: Context, filePath: String, contact: ClipContact, songTitle: String) {
+    try {
+        val file = File(filePath)
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "audio/mp4"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_TEXT, "Listen to this audio clip of '$songTitle' on Nido!")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(sendIntent, "Share with ${contact.name}"))
+    } catch (_: Exception) {}
+}
+
+private fun shareClipSystemChooser(context: Context, filePath: String, songTitle: String) {
+    try {
+        val file = File(filePath)
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "audio/mp4"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_TEXT, "Listen to this audio clip of '$songTitle' on Nido!")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(sendIntent, "Share Clip"))
+    } catch (_: Exception) {}
+}
+
+fun queryClipContacts(context: Context): List<ClipContact> {
+    val contacts = mutableListOf<ClipContact>()
+
+    // Core Nido users & known profiles
+    contacts.add(ClipContact("User 1", "+1 555-0101", hasNido = true, username = "@user1"))
+    contacts.add(ClipContact("User 2", "+1 555-0102", hasNido = true, username = "@user2"))
+    contacts.add(ClipContact("Bob Marley", "+1 555-0103", hasNido = true, username = "@bob"))
+    contacts.add(ClipContact("Alice Cooper", "+1 555-0104", hasNido = true, username = "@alice"))
+    contacts.add(ClipContact("Elena Rostova", "+1 555-0105", hasNido = true, username = "@elena"))
+    contacts.add(ClipContact("Nido Support", "+1 555-0100", hasNido = true, username = "@nido_support"))
+
+    val hasPermission = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.READ_CONTACTS
+    ) == PackageManager.PERMISSION_GRANTED
+
+    if (hasPermission) {
+        try {
+            val cr = context.contentResolver
+            val cursor = cr.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER
+                ),
+                null,
+                null,
+                "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} ASC"
+            )
+            val seen = mutableSetOf<String>()
+            cursor?.use {
+                val nameIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                while (it.moveToNext()) {
+                    val name = it.getString(nameIdx) ?: continue
+                    val rawNumber = it.getString(numIdx) ?: continue
+                    val clean = rawNumber.replace("[^0-9+]".toRegex(), "")
+                    if (clean.isNotEmpty() && seen.add(clean)) {
+                        val onNido = clean.endsWith("777") ||
+                                name.contains("Nido", ignoreCase = true) ||
+                                name.contains("User 1", ignoreCase = true) ||
+                                name.contains("User 2", ignoreCase = true)
+                        if (onNido) {
+                            contacts.add(
+                                ClipContact(
+                                    name = name,
+                                    phoneNumber = rawNumber,
+                                    hasNido = true,
+                                    username = "@${name.lowercase().replace(" ", "_")}"
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    return contacts.filter { it.hasNido }.distinctBy { it.username ?: it.name }
 }
 
 private fun formatDuration(ms: Long): String {

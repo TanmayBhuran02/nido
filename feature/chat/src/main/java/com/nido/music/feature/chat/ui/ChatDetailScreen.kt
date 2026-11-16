@@ -292,10 +292,19 @@ fun ChatDetailScreen(
         ) {
             items(displayedMessages, key = { it.id }) { msg ->
                 val isMe = msg.senderId == "me"
+                val parsedClip = remember(msg.content, msg.type) {
+                    if (msg.type == MessageType.CLIP) {
+                        try {
+                            Json.decodeFromString<ClipPayload>(msg.content)
+                        } catch (_: Exception) {
+                            sampleClip
+                        }
+                    } else null
+                }
                 MessageBubble(
                     message = msg,
                     isMe = isMe,
-                    clipPayload = if (msg.type == MessageType.CLIP) sampleClip else null,
+                    clipPayload = parsedClip,
                     onPlayClip = { /* inline audio play */ },
                     onFindFullSong = { _, _ -> /* find full song */ },
                     onReply = { replyingToMessage = it },

@@ -5,6 +5,8 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.nido.music.feature.chat.ui.ConversationsViewModel
 import com.nido.music.feature.clipshare.ui.ClipTrimmerScreen
 import com.nido.music.feature.chat.ui.ConversationsScreen
 import com.nido.music.feature.chat.ui.ChatDetailScreen
@@ -75,9 +77,24 @@ fun NidoNavHost(
 
         composable("clip_trimmer/{songId}") { backStackEntry ->
             val songId = backStackEntry.arguments?.getString("songId")?.toLongOrNull() ?: return@composable
+            val conversationsViewModel: ConversationsViewModel = hiltViewModel()
             ClipTrimmerScreen(
                 songId = songId,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onShareToChat = { peerId, peerTitle, clipTitle, artist, startMs, endMs ->
+                    conversationsViewModel.shareClipToPeer(
+                        peerId = peerId,
+                        peerTitle = peerTitle,
+                        clipTitle = clipTitle,
+                        artist = artist,
+                        startMs = startMs,
+                        endMs = endMs
+                    ) { convId ->
+                        navController.navigate("chat/$convId") {
+                            popUpTo("clip_trimmer/{songId}") { inclusive = true }
+                        }
+                    }
+                }
             )
         }
 
