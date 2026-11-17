@@ -1,0 +1,8 @@
+# CHANGE to your DuckDNS name
+nidochat.org {
+    encode gzip
+    request_body {
+        max_size 50MB
+    }
+    reverse_proxy api:8000
+}

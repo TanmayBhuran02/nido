@@ -18,3 +18,8 @@ __pycache__/
 .venv/
 backend/media_storage/
 .agents/
+backend/.env
+*.keystore
+*.jks
+nido-data/
+*.bak

@@ -22,8 +22,16 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    MEDIA_PATH: str = ""
+    ALLOW_REGISTRATION: bool = True
+    INVITE_CODE: str = ""
 
     class Config:
         env_file = ".env"
 
 settings = Settings()
+if settings.MEDIA_PATH:
+    settings.LOCAL_STORAGE_DIR = settings.MEDIA_PATH
+if settings.DATABASE_URL.startswith("sqlite:///") and not settings.DATABASE_URL.startswith("sqlite+aiosqlite:///"):
+    settings.DATABASE_URL = settings.DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+

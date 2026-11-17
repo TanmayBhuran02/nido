@@ -1,8 +1,10 @@
+import hmac
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from app.config import settings
 from app.database import get_db
 from app.models import User, Device
 from app.auth.security import hash_password, verify_password, create_access_token, create_refresh_token, decode_token
@@ -16,6 +18,7 @@ class RegisterRequest(BaseModel):
     registration_id: int
     device_id: int = 1
     fcm_token: Optional[str] = None
+    invite_code: Optional[str] = None
 
 class LoginRequest(BaseModel):
     username: str
@@ -36,6 +39,14 @@ class AuthResponse(BaseModel):
 
 @router.post("/register", response_model=AuthResponse)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    if not settings.ALLOW_REGISTRATION:
+        raise HTTPException(status_code=403, detail="Registration closed")
+
+    if settings.INVITE_CODE and not hmac.compare_digest(
+        (req.invite_code or ""), settings.INVITE_CODE
+    ):
+        raise HTTPException(status_code=403, detail="Invalid invite code")
+
     stmt = select(User).where(User.username == req.username)
     res = await db.execute(stmt)
     if res.scalar_one_or_none():

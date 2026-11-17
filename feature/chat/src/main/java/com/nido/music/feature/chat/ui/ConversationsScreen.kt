@@ -342,6 +342,7 @@ fun ConversationsScreen(
 
     if (showEditProfileDialog) {
         var inputName by remember { mutableStateOf(authState.username ?: "") }
+        var inputInviteCode by remember { mutableStateOf("") }
         var errorMsg by remember { mutableStateOf<String?>(null) }
         AlertDialog(
             onDismissRequest = { showEditProfileDialog = false },
@@ -364,13 +365,22 @@ fun ConversationsScreen(
                         supportingText = errorMsg?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = inputInviteCode,
+                        onValueChange = { inputInviteCode = it; errorMsg = null },
+                        label = { Text("Invite Code (if required)") },
+                        placeholder = { Text("e.g. a1b2c3") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         if (inputName.isNotBlank()) {
-                            viewModel.setUsername(inputName.trim()) { success, err ->
+                            viewModel.setUsername(inputName.trim(), inputInviteCode.trim()) { success, err ->
                                 if (success) {
                                     showEditProfileDialog = false
                                 } else {

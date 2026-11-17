@@ -47,3 +47,8 @@ app.include_router(stickers_router)
 @app.get("/")
 async def root():
     return {"name": "Nido Relay Server", "status": "running", "e2ee": True}
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+

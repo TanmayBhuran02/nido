@@ -24,6 +24,8 @@ android {
         debug {
             isDebuggable = true
             applicationIdSuffix = ".debug"
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8000/\"")
+            buildConfigField("String", "WS_URL", "\"ws://10.0.2.2:8000/ws\"")
         }
         release {
             isMinifyEnabled = true
@@ -32,6 +34,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            buildConfigField("String", "BASE_URL", "\"https://nidochat.duckdns.org/\"")
+            buildConfigField("String", "WS_URL", "\"wss://nidochat.duckdns.org/ws\"")
         }
     }
 

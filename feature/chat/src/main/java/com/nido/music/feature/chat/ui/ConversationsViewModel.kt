@@ -27,9 +27,9 @@ class ConversationsViewModel @Inject constructor(
     val conversations: StateFlow<List<ConversationEntity>> = repository.getConversations()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun setUsername(newUsername: String, onComplete: (Boolean, String?) -> Unit) {
+    fun setUsername(newUsername: String, inviteCode: String? = null, onComplete: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
-            val result = authManager.registerUser(newUsername)
+            val result = authManager.registerUser(newUsername, inviteCode = inviteCode?.takeIf { it.isNotBlank() })
             if (result.isSuccess) {
                 onComplete(true, null)
             } else {

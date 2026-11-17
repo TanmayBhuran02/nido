@@ -48,7 +48,8 @@ class ChatAuthManager @Inject constructor(
     suspend fun registerUser(
         desiredUsername: String,
         password: String = "nido_pass_123456",
-        phone: String? = null
+        phone: String? = null,
+        inviteCode: String? = null
     ): Result<AuthResponse> = withContext(Dispatchers.IO) {
         try {
             val cleanUsername = desiredUsername.lstrip("@").trim().lowercase().replace(" ", "_")
@@ -59,7 +60,8 @@ class ChatAuthManager @Inject constructor(
                 password = password,
                 phone = phone,
                 registration_id = regId,
-                device_id = 1
+                device_id = 1,
+                invite_code = inviteCode
             )
 
             val authRes = try {

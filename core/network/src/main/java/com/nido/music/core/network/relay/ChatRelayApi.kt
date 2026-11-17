@@ -16,7 +16,8 @@ data class RegisterRequest(
     val phone: String? = null,
     val registration_id: Int,
     val device_id: Int = 1,
-    val fcm_token: String? = null
+    val fcm_token: String? = null,
+    val invite_code: String? = null
 )
 
 @Serializable
