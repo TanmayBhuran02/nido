@@ -304,7 +304,7 @@ fun ChatDetailScreen(
                                 value = inputText,
                                 onValueChange = { inputText = it },
                                 modifier = Modifier.weight(1f),
-                                placeholder = { Text("Signal encrypted message...") },
+                                placeholder = { Text("Enter message...") },
                                 maxLines = 4,
                                 shape = RoundedCornerShape(24.dp)
                             )

@@ -42,82 +42,16 @@ class ChatRepository @Inject constructor(
 
     init {
         repoScope.launch {
-            seedDefaultConversationsIfEmpty()
+            removeDummyChats()
             authManager.autoRegisterIfGuest()
             startPeriodicSync()
         }
     }
 
-    private suspend fun seedDefaultConversationsIfEmpty() {
-        val existing = chatDao.getConversations().first()
-        if (existing.isEmpty()) {
-            val now = System.currentTimeMillis()
-            val conv1 = ConversationEntity(
-                id = "conv_bob",
-                peerId = "peer_bob",
-                title = "Bob Marley",
-                lastMessageSnippet = "Check out this song clip!",
-                lastMessageTimestamp = now - 1000 * 60 * 5,
-                unreadCount = 1,
-                isGroup = false
-            )
-            val conv2 = ConversationEntity(
-                id = "conv_alice",
-                peerId = "peer_alice",
-                title = "Alice Cooper",
-                lastMessageSnippet = "Sounds good, see you tomorrow",
-                lastMessageTimestamp = now - 1000 * 60 * 30,
-                unreadCount = 0,
-                isGroup = false
-            )
-            val convSupport = ConversationEntity(
-                id = "conv_support",
-                peerId = "peer_support",
-                title = "Nido Support",
-                lastMessageSnippet = "Welcome to Nido encrypted messenger!",
-                lastMessageTimestamp = now - 1000 * 60 * 120,
-                unreadCount = 0,
-                isGroup = false
-            )
-            chatDao.upsertConversation(conv1)
-            chatDao.upsertConversation(conv2)
-            chatDao.upsertConversation(convSupport)
-
-            // Seed initial messages for Bob
-            val msg1 = MessageEntity(
-                id = "m_seed_1",
-                conversationId = "conv_bob",
-                senderId = "peer_bob",
-                type = MessageType.TEXT,
-                content = "Hey! Check out this chorus part:",
-                status = MessageStatus.READ,
-                timestamp = now - 1000 * 60 * 10
-            )
-            val msg2 = MessageEntity(
-                id = "m_seed_2",
-                conversationId = "conv_bob",
-                senderId = "peer_bob",
-                type = MessageType.TEXT,
-                content = "Signal E2EE ratchets are active 🔒",
-                status = MessageStatus.READ,
-                timestamp = now - 1000 * 60 * 5
-            )
-            chatDao.insertMessage(msg1)
-            chatDao.insertMessage(msg2)
-
-            // Seed initial message for Support
-            chatDao.insertMessage(
-                MessageEntity(
-                    id = "m_seed_support",
-                    conversationId = "conv_support",
-                    senderId = "peer_support",
-                    type = MessageType.TEXT,
-                    content = "Welcome to Nido! All 1:1 chats are protected with Signal Double Ratchet.",
-                    status = MessageStatus.READ,
-                    timestamp = now - 1000 * 60 * 120
-                )
-            )
-        }
+    private suspend fun removeDummyChats() {
+        chatDao.deleteConversation("conv_bob")
+        chatDao.deleteConversation("conv_alice")
+        chatDao.deleteConversation("conv_support")
     }
 
     fun getConversations(): Flow<List<ConversationEntity>> = chatDao.getConversations()

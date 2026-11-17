@@ -27,7 +27,7 @@ class ChatDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    val conversationId: String = savedStateHandle["conversationId"] ?: "conv_bob"
+    val conversationId: String = savedStateHandle["conversationId"] ?: ""
 
     private val _conversation = MutableStateFlow<ConversationEntity?>(null)
     val conversation: StateFlow<ConversationEntity?> = _conversation.asStateFlow()
