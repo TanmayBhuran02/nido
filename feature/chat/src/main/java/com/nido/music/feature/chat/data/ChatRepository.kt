@@ -153,7 +153,7 @@ class ChatRepository @Inject constructor(
             senderId = "me",
             type = type,
             content = verifiedText,
-            status = MessageStatus.SENT,
+            status = MessageStatus.OUTBOX,
             replyToId = replyToId,
             replyToSnippet = replyToSnippet,
             timestamp = now
@@ -183,7 +183,11 @@ class ChatRepository @Inject constructor(
 
         // Relay to backend if it's a real user
         val isMock = peerId == "peer_bob" || peerId == "peer_alice" || peerId == "peer_support"
-        if (!isMock) {
+        if (isMock) {
+            repoScope.launch {
+                chatDao.updateMessageStatus(msgId, MessageStatus.SENT)
+            }
+        } else {
             repoScope.launch {
                 try {
                     val auth = authManager.autoRegisterIfGuest()
@@ -217,9 +221,10 @@ class ChatRepository @Inject constructor(
                                 reply_to_id = replyToId
                             )
                         )
+                        chatDao.updateMessageStatus(msgId, MessageStatus.SENT)
                     }
                 } catch (e: Exception) {
-                    // Handled gracefully; local message saved
+                    // Handled gracefully; local message saved in OUTBOX for retry
                 }
             }
         }
@@ -231,11 +236,66 @@ class ChatRepository @Inject constructor(
         repoScope.launch {
             while (true) {
                 try {
+                    flushOutbox()
                     syncPendingMessages()
                 } catch (e: Exception) {
                     // Ignore transient errors
                 }
                 delay(3000)
+            }
+        }
+    }
+
+    suspend fun flushOutbox() {
+        val pending = chatDao.getPendingOutboxMessages()
+        if (pending.isEmpty()) return
+
+        val auth = authManager.authState.value
+        if (!auth.isLoggedIn || auth.accessToken.isNullOrEmpty()) return
+
+        for (msg in pending) {
+            val conv = chatDao.getConversation(msg.conversationId) ?: continue
+            val peerId = conv.peerId
+            val isMock = peerId == "peer_bob" || peerId == "peer_alice" || peerId == "peer_support"
+            if (isMock) {
+                chatDao.updateMessageStatus(msg.id, MessageStatus.SENT)
+                continue
+            }
+
+            var targetUserId = peerId.removePrefix("peer_")
+            if (!targetUserId.contains("-") && targetUserId.length < 32) {
+                try {
+                    val userContact = relayApi.getUserByUsername(targetUserId)
+                    targetUserId = userContact.user_id
+                } catch (e: Exception) {
+                    // proceed with targetUserId as given
+                }
+            }
+
+            try {
+                val encryptedEnvelope = signalProtocolManager.encrypt(peerId, msg.content.toByteArray(Charsets.UTF_8))
+                relayApi.sendMessage(
+                    auth = "Bearer ${auth.accessToken}",
+                    req = SendMessageRequest(
+                        recipient_user_id = targetUserId,
+                        recipient_device_id = 1,
+                        ciphertext = encryptedEnvelope.ciphertext,
+                        message_type = when (msg.type) {
+                            MessageType.TEXT -> 1
+                            MessageType.CLIP -> 2
+                            MessageType.AUDIO -> 3
+                            MessageType.LOCATION -> 4
+                            MessageType.STICKER -> 5
+                            MessageType.IMAGE -> 6
+                            MessageType.VIDEO -> 7
+                            MessageType.DOC -> 8
+                        },
+                        reply_to_id = msg.replyToId
+                    )
+                )
+                chatDao.updateMessageStatus(msg.id, MessageStatus.SENT)
+            } catch (e: Exception) {
+                break // Server down, pause until next sync cycle
             }
         }
     }
