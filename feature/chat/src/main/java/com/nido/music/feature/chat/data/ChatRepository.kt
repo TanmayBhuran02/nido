@@ -1,29 +1,42 @@
 package com.nido.music.feature.chat.data
 
+import android.content.Context
 import com.nido.music.core.crypto.SignalProtocolManager
 import com.nido.music.core.network.relay.ChatRelayApi
 import com.nido.music.core.network.relay.SendMessageRequest
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.asRequestBody
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ChatRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val chatDao: ChatDao,
     private val signalProtocolManager: SignalProtocolManager,
     private val relayApi: ChatRelayApi,
     private val authManager: ChatAuthManager
 ) {
     private val repoScope = CoroutineScope(Dispatchers.IO)
+    private val deletedContactsPrefs = context.getSharedPreferences("nido_deleted_contacts", Context.MODE_PRIVATE)
+    private val _deletedContactIdsFlow = MutableStateFlow<Set<String>>(loadDeletedContactIds())
+    val deletedContactIdsFlow: StateFlow<Set<String>> = _deletedContactIdsFlow.asStateFlow()
+
+    private fun loadDeletedContactIds(): Set<String> {
+        return deletedContactsPrefs.getStringSet("deleted_ids", emptySet()) ?: emptySet()
+    }
 
     init {
         repoScope.launch {
@@ -464,6 +477,37 @@ class ChatRepository @Inject constructor(
 
     fun getMediaGallery(conversationId: String): Flow<List<MessageEntity>> {
         return chatDao.getMediaGalleryMessages(conversationId)
+    }
+
+    suspend fun deleteConversation(conversationId: String) {
+        chatDao.deleteConversation(conversationId)
+    }
+
+    suspend fun clearMessages(conversationId: String) {
+        chatDao.deleteMessagesForConversation(conversationId)
+    }
+
+    fun getContacts(): Flow<List<ContactEntity>> {
+        return chatDao.getContacts()
+    }
+
+    suspend fun upsertContact(contact: ContactEntity) {
+        chatDao.upsertContact(contact)
+    }
+
+    suspend fun markContactDeleted(contactId: String, phoneNumber: String? = null) {
+        val current = _deletedContactIdsFlow.value.toMutableSet()
+        current.add(contactId)
+        if (!phoneNumber.isNullOrBlank()) {
+            current.add(phoneNumber.replace("[^0-9+]".toRegex(), ""))
+        }
+        deletedContactsPrefs.edit().putStringSet("deleted_ids", current).apply()
+        _deletedContactIdsFlow.value = current
+        chatDao.deleteContact(contactId)
+    }
+
+    suspend fun deleteContact(contactId: String) {
+        markContactDeleted(contactId, null)
     }
 
     suspend fun uploadClipFile(file: java.io.File): String {

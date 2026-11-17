@@ -85,6 +85,8 @@ fun ChatDetailScreen(
     var showStickersSheet by remember { mutableStateOf(false) }
     var showMediaGallerySheet by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
+    var showDeleteChatDialog by remember { mutableStateOf(false) }
+    var showOptionsMenu by remember { mutableStateOf(false) }
 
     // Audio recording state
     var isRecordingAudio by remember { mutableStateOf(false) }
@@ -193,6 +195,30 @@ fun ChatDetailScreen(
                         IconButton(onClick = { showMediaGallerySheet = true }) {
                             Icon(Icons.Default.PermMedia, contentDescription = "Media Gallery")
                         }
+                        Box {
+                            IconButton(onClick = { showOptionsMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More Options")
+                            }
+                            DropdownMenu(
+                                expanded = showOptionsMenu,
+                                onDismissRequest = { showOptionsMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Delete Chat", color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    },
+                                    onClick = {
+                                        showOptionsMenu = false
+                                        showDeleteChatDialog = true
+                                    }
+                                )
+                            }
+                        }
                     } else {
                         IconButton(onClick = { searchQuery = "" }) {
                             Icon(Icons.Default.Close, contentDescription = "Clear")
@@ -202,7 +228,11 @@ fun ChatDetailScreen(
             )
         },
         bottomBar = {
-            Column(modifier = Modifier.navigationBarsPadding()) {
+            Column(
+                modifier = Modifier.windowInsetsPadding(
+                    WindowInsets.navigationBars.union(WindowInsets.ime)
+                )
+            ) {
                 // Reply Banner
                 AnimatedVisibility(visible = replyingToMessage != null) {
                     replyingToMessage?.let { target ->
@@ -619,6 +649,33 @@ fun ChatDetailScreen(
                     TextButton(onClick = { messageToDelete = null }) {
                         Text("Cancel")
                     }
+                }
+            }
+        )
+    }
+
+    // Delete Chat Dialog
+    if (showDeleteChatDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteChatDialog = false },
+            title = { Text("Delete Chat") },
+            text = { Text("Delete this conversation and all encrypted messages permanently?") },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    onClick = {
+                        showDeleteChatDialog = false
+                        viewModel.deleteCurrentConversation {
+                            onNavigateBack()
+                        }
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteChatDialog = false }) {
+                    Text("Cancel")
                 }
             }
         )

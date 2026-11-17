@@ -124,6 +124,7 @@ fun inviteContact(context: Context, contact: PhoneContact) {
 @Composable
 fun ConversationsScreen(
     onNavigateToChat: (String) -> Unit,
+    onNavigateToRegister: () -> Unit = {},
     viewModel: ConversationsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -131,6 +132,7 @@ fun ConversationsScreen(
     var showNewChatDialog by remember { mutableStateOf(false) }
     var showEditProfileDialog by remember { mutableStateOf(false) }
     val authState by viewModel.authState.collectAsState()
+    val deletedContactIds by viewModel.deletedContactIds.collectAsState()
 
     var hasContactsPermission by remember {
         mutableStateOf(
@@ -147,8 +149,13 @@ fun ConversationsScreen(
         hasContactsPermission = granted
     }
 
-    val contactsList = remember(hasContactsPermission) {
-        queryPhoneContacts(context)
+    val contactsList = remember(hasContactsPermission, deletedContactIds) {
+        queryPhoneContacts(context).filter { contact ->
+            val cleanPhone = contact.phoneNumber.replace("[^0-9+]".toRegex(), "")
+            !deletedContactIds.contains(contact.name) &&
+            !deletedContactIds.contains(cleanPhone) &&
+            (contact.username == null || !deletedContactIds.contains(contact.username))
+        }
     }
 
     val conversations by viewModel.conversations.collectAsState()
@@ -169,6 +176,17 @@ fun ConversationsScreen(
                     }
                 },
                 actions = {
+                    if (authState.username?.startsWith("user_") == true || !authState.isLoggedIn) {
+                        FilledTonalButton(
+                            onClick = onNavigateToRegister,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(end = 4.dp)
+                        ) {
+                            Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Register", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
@@ -253,7 +271,8 @@ fun ConversationsScreen(
                     ConversationItem(
                         conversation = conv,
                         onClick = { onNavigateToChat(conv.id) },
-                        onRename = { newName -> viewModel.renameConversation(conv.id, newName) }
+                        onRename = { newName -> viewModel.renameConversation(conv.id, newName) },
+                        onDelete = { viewModel.deleteConversation(conv.id) }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
@@ -335,6 +354,9 @@ fun ConversationsScreen(
                         onNavigateToChat(id)
                     }
                 },
+                onDeleteContact = { contact ->
+                    viewModel.deleteContact(contact.name, contact.phoneNumber)
+                },
                 myUsername = authState.username
             )
         }
@@ -355,10 +377,22 @@ fun ConversationsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = {
+                            showEditProfileDialog = false
+                            onNavigateToRegister()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Register with Password & Email")
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = inputName,
                         onValueChange = { inputName = it; errorMsg = null },
-                        label = { Text("Username") },
+                        label = { Text("Quick Username") },
                         placeholder = { Text("e.g. satoshi") },
                         singleLine = true,
                         isError = errorMsg != null,
@@ -411,6 +445,7 @@ fun NewChatContactsSheet(
     onInviteContact: (PhoneContact) -> Unit,
     onCreateGroupClick: () -> Unit,
     onManualUserChat: (String) -> Unit,
+    onDeleteContact: (PhoneContact) -> Unit = {},
     myUsername: String? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -571,7 +606,8 @@ fun NewChatContactsSheet(
                     ContactRow(
                         contact = contact,
                         onChatClick = { onSelectContact(contact) },
-                        onInviteClick = {}
+                        onInviteClick = {},
+                        onDeleteContact = { onDeleteContact(contact) }
                     )
                 }
             }
@@ -590,7 +626,8 @@ fun NewChatContactsSheet(
                     ContactRow(
                         contact = contact,
                         onChatClick = {},
-                        onInviteClick = { onInviteContact(contact) }
+                        onInviteClick = { onInviteContact(contact) },
+                        onDeleteContact = { onDeleteContact(contact) }
                     )
                 }
             }
@@ -654,8 +691,11 @@ fun NewChatContactsSheet(
 fun ContactRow(
     contact: PhoneContact,
     onChatClick: () -> Unit,
-    onInviteClick: () -> Unit
+    onInviteClick: () -> Unit,
+    onDeleteContact: () -> Unit = {}
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -709,6 +749,39 @@ fun ContactRow(
                 Text("Invite", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
+
+        IconButton(onClick = { showDeleteDialog = true }) {
+            Icon(
+                Icons.Default.DeleteOutline,
+                contentDescription = "Delete Contact",
+                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Contact") },
+            text = { Text("Remove \"${contact.name}\" from your contacts?") },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    onClick = {
+                        showDeleteDialog = false
+                        onDeleteContact()
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -717,16 +790,19 @@ fun ContactRow(
 fun ConversationItem(
     conversation: ConversationEntity,
     onClick: () -> Unit,
-    onRename: (String) -> Unit = {}
+    onRename: (String) -> Unit = {},
+    onDelete: () -> Unit = {}
 ) {
     var showRenameDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = { showRenameDialog = true }
+                onLongClick = { showMenu = true }
             )
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -775,13 +851,42 @@ fun ConversationItem(
             )
         }
 
-        IconButton(onClick = { showRenameDialog = true }) {
-            Icon(
-                Icons.Default.Edit,
-                contentDescription = "Rename User",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(18.dp)
-            )
+        Box {
+            IconButton(onClick = { showMenu = true }) {
+                Icon(
+                    Icons.Default.MoreVert,
+                    contentDescription = "Options",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Rename") },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    onClick = {
+                        showMenu = false
+                        showRenameDialog = true
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete Chat", color = MaterialTheme.colorScheme.error) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    },
+                    onClick = {
+                        showMenu = false
+                        showDeleteDialog = true
+                    }
+                )
+            }
         }
 
         if (conversation.unreadCount > 0) {
@@ -789,6 +894,30 @@ fun ConversationItem(
                 Text(conversation.unreadCount.toString())
             }
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Chat") },
+            text = { Text("Delete conversation with \"${conversation.title}\" and all messages permanently?") },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    onClick = {
+                        showDeleteDialog = false
+                        onDelete()
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showRenameDialog) {

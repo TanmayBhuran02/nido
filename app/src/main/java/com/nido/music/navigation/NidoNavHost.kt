@@ -1,7 +1,10 @@
 package com.nido.music.navigation
 
+import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -10,6 +13,7 @@ import com.nido.music.feature.chat.ui.ConversationsViewModel
 import com.nido.music.feature.clipshare.ui.ClipTrimmerScreen
 import com.nido.music.feature.chat.ui.ConversationsScreen
 import com.nido.music.feature.chat.ui.ChatDetailScreen
+import com.nido.music.feature.chat.ui.RegisterScreen
 import com.nido.music.feature.discover.ui.DiscoverScreen
 import com.nido.music.feature.music.ui.library.LibraryScreen
 import com.nido.music.feature.music.ui.player.PlayerScreen
@@ -23,11 +27,22 @@ import com.nido.music.feature.settings.ui.SettingsScreen
 @Composable
 fun NidoNavHost(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    startDestination: String? = null
 ) {
+    val context = LocalContext.current
+    val actualStartDestination = remember {
+        startDestination ?: run {
+            val prefs = context.getSharedPreferences("nido_chat_auth_prefs", Context.MODE_PRIVATE)
+            val hasCompleted = prefs.getBoolean("has_completed_onboarding", false) ||
+                    (!prefs.getString("user_id", null).isNullOrEmpty() && !prefs.getString("access_token", null).isNullOrEmpty())
+            if (hasCompleted) TopLevelDestination.LIBRARY.route else "register"
+        }
+    }
+
     NavHost(
         navController = navController,
-        startDestination = TopLevelDestination.LIBRARY.route,
+        startDestination = actualStartDestination,
         modifier = modifier
     ) {
         // Top-level
@@ -41,7 +56,41 @@ fun NidoNavHost(
 
         composable(TopLevelDestination.CHAT.route) {
             ConversationsScreen(
-                onNavigateToChat = { convId -> navController.navigate("chat/$convId") }
+                onNavigateToChat = { convId -> navController.navigate("chat/$convId") },
+                onNavigateToRegister = { navController.navigate("register") }
+            )
+        }
+
+        composable("register") {
+            val isFromOnboarding = remember {
+                navController.previousBackStackEntry == null
+            }
+            RegisterScreen(
+                onRegistered = {
+                    if (isFromOnboarding) {
+                        navController.navigate(TopLevelDestination.LIBRARY.route) {
+                            popUpTo("register") { inclusive = true }
+                        }
+                    } else {
+                        navController.popBackStack()
+                    }
+                },
+                onNavigateBack = {
+                    if (isFromOnboarding) {
+                        navController.navigate(TopLevelDestination.LIBRARY.route) {
+                            popUpTo("register") { inclusive = true }
+                        }
+                    } else {
+                        navController.popBackStack()
+                    }
+                },
+                onSkip = if (isFromOnboarding) {
+                    {
+                        navController.navigate(TopLevelDestination.LIBRARY.route) {
+                            popUpTo("register") { inclusive = true }
+                        }
+                    }
+                } else null
             )
         }
 

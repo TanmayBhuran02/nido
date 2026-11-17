@@ -64,9 +64,27 @@ interface ChatDao {
     @Query("SELECT * FROM attachments WHERE id = :id")
     suspend fun getAttachment(id: String): AttachmentEntity?
 
+    @Query("DELETE FROM messages WHERE conversationId = :convId")
+    suspend fun deleteMessagesForConversation(convId: String)
+
+    @Query("DELETE FROM conversations WHERE id = :convId")
+    suspend fun deleteConversationOnly(convId: String)
+
+    @Transaction
+    suspend fun deleteConversation(convId: String) {
+        deleteMessagesForConversation(convId)
+        deleteConversationOnly(convId)
+    }
+
     @Query("SELECT * FROM contacts WHERE id = :id")
     suspend fun getContact(id: String): ContactEntity?
 
+    @Query("SELECT * FROM contacts ORDER BY displayName ASC")
+    fun getContacts(): Flow<List<ContactEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertContact(contact: ContactEntity)
+
+    @Query("DELETE FROM contacts WHERE id = :id")
+    suspend fun deleteContact(id: String)
 }

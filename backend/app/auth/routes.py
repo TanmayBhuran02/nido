@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=64)
     password: str = Field(..., min_length=6)
+    email: Optional[str] = None
     phone: Optional[str] = None
     registration_id: int
     device_id: int = 1
@@ -52,8 +53,16 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     if res.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Username already taken")
 
+    if req.email:
+        email_clean = req.email.strip().lower()
+        stmt = select(User).where(User.email == email_clean)
+        res = await db.execute(stmt)
+        if res.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Email already registered")
+
     user = User(
         username=req.username,
+        email=req.email.strip().lower() if req.email else None,
         phone=req.phone,
         password_hash=hash_password(req.password)
     )

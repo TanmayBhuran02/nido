@@ -279,6 +279,19 @@ class ChatDetailViewModel @Inject constructor(
         }
     }
 
+    fun deleteCurrentConversation(onDeleted: () -> Unit) {
+        viewModelScope.launch {
+            repository.deleteConversation(conversationId)
+            onDeleted()
+        }
+    }
+
+    fun clearChatMessages() {
+        viewModelScope.launch {
+            repository.clearMessages(conversationId)
+        }
+    }
+
     fun toggleStarred(messageId: String, currentStarred: Boolean) {
         viewModelScope.launch {
             repository.updateStarred(messageId, !currentStarred)

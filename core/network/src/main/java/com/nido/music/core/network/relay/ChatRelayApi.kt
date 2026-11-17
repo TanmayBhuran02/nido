@@ -13,6 +13,7 @@ import retrofit2.http.Query
 data class RegisterRequest(
     val username: String,
     val password: String,
+    val email: String? = null,
     val phone: String? = null,
     val registration_id: Int,
     val device_id: Int = 1,

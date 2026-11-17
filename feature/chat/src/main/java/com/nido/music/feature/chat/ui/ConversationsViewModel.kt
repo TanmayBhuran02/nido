@@ -27,6 +27,8 @@ class ConversationsViewModel @Inject constructor(
     val conversations: StateFlow<List<ConversationEntity>> = repository.getConversations()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val deletedContactIds: StateFlow<Set<String>> = repository.deletedContactIdsFlow
+
     fun setUsername(newUsername: String, inviteCode: String? = null, onComplete: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             val result = authManager.registerUser(newUsername, inviteCode = inviteCode?.takeIf { it.isNotBlank() })
@@ -35,6 +37,68 @@ class ConversationsViewModel @Inject constructor(
             } else {
                 onComplete(false, result.exceptionOrNull()?.message)
             }
+        }
+    }
+
+    fun registerAccount(
+        username: String,
+        password: String,
+        email: String?,
+        inviteCode: String? = null,
+        onComplete: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = authManager.registerUser(
+                desiredUsername = username,
+                password = password,
+                email = email,
+                inviteCode = inviteCode?.takeIf { it.isNotBlank() }
+            )
+            if (result.isSuccess) {
+                onComplete(true, null)
+            } else {
+                onComplete(false, result.exceptionOrNull()?.message)
+            }
+        }
+    }
+
+    fun loginAccount(
+        username: String,
+        password: String,
+        onComplete: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = authManager.loginUser(
+                desiredUsername = username,
+                password = password
+            )
+            if (result.isSuccess) {
+                onComplete(true, null)
+            } else {
+                onComplete(false, result.exceptionOrNull()?.message)
+            }
+        }
+    }
+
+    fun logout() {
+        authManager.logout()
+    }
+
+    fun hasCompletedOnboarding(): Boolean = authManager.hasCompletedOnboarding()
+
+    fun skipOnboarding() {
+        authManager.setOnboardingCompleted()
+    }
+
+    fun deleteConversation(conversationId: String) {
+        viewModelScope.launch {
+            repository.deleteConversation(conversationId)
+        }
+    }
+
+    fun deleteContact(contactId: String, phoneNumber: String? = null) {
+        viewModelScope.launch {
+            repository.markContactDeleted(contactId, phoneNumber)
         }
     }
 
