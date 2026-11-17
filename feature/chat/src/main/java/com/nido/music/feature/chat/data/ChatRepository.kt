@@ -199,6 +199,10 @@ class ChatRepository @Inject constructor(
         if (isMock) {
             repoScope.launch {
                 chatDao.updateMessageStatus(msgId, MessageStatus.SENT)
+                delay(700)
+                chatDao.updateMessageStatus(msgId, MessageStatus.DELIVERED)
+                delay(1200)
+                chatDao.updateMessageStatus(msgId, MessageStatus.READ)
             }
         } else {
             repoScope.launch {
@@ -378,7 +382,7 @@ class ChatRepository @Inject constructor(
                     senderId = peerId,
                     type = detectedType,
                     content = plaintext,
-                    status = MessageStatus.READ,
+                    status = MessageStatus.DELIVERED,
                     replyToId = item.reply_to_id,
                     timestamp = System.currentTimeMillis()
                 )
@@ -508,6 +512,13 @@ class ChatRepository @Inject constructor(
 
     suspend fun deleteContact(contactId: String) {
         markContactDeleted(contactId, null)
+    }
+
+    fun getTotalUnreadCount(): Flow<Int> = chatDao.getTotalUnreadCount()
+
+    suspend fun markConversationAsRead(convId: String) {
+        chatDao.markConversationRead(convId)
+        chatDao.markMessagesAsRead(convId)
     }
 
     suspend fun uploadClipFile(file: java.io.File): String {

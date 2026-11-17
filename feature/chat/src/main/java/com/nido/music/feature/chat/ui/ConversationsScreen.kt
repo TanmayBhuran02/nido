@@ -270,7 +270,10 @@ fun ConversationsScreen(
                 items(conversations, key = { it.id }) { conv ->
                     ConversationItem(
                         conversation = conv,
-                        onClick = { onNavigateToChat(conv.id) },
+                        onClick = {
+                            viewModel.markConversationAsRead(conv.id)
+                            onNavigateToChat(conv.id)
+                        },
                         onRename = { newName -> viewModel.renameConversation(conv.id, newName) },
                         onDelete = { viewModel.deleteConversation(conv.id) }
                     )
@@ -890,8 +893,15 @@ fun ConversationItem(
         }
 
         if (conversation.unreadCount > 0) {
-            Badge {
-                Text(conversation.unreadCount.toString())
+            Badge(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
+                Text(
+                    text = if (conversation.unreadCount > 99) "99+" else conversation.unreadCount.toString(),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }

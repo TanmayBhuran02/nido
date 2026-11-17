@@ -53,6 +53,16 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     if res.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Username already taken")
 
+    phone_clean = None
+    if req.phone and req.phone.strip():
+        phone_clean = req.phone.strip().replace(" ", "").replace("-", "")
+        stmt = select(User).where(User.phone == phone_clean)
+        res = await db.execute(stmt)
+        if res.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Phone number already registered")
+    elif not req.username.startswith("user_"):
+        raise HTTPException(status_code=400, detail="Phone number is mandatory")
+
     if req.email:
         email_clean = req.email.strip().lower()
         stmt = select(User).where(User.email == email_clean)
@@ -63,7 +73,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     user = User(
         username=req.username,
         email=req.email.strip().lower() if req.email else None,
-        phone=req.phone,
+        phone=phone_clean,
         password_hash=hash_password(req.password)
     )
     db.add(user)

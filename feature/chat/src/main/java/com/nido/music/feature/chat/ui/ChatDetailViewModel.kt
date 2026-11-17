@@ -35,6 +35,26 @@ class ChatDetailViewModel @Inject constructor(
     val messages: StateFlow<List<MessageEntity>> = repository.getMessages(conversationId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    init {
+        viewModelScope.launch {
+            repository.markConversationAsRead(conversationId)
+            _conversation.value = repository.getConversation(conversationId)
+        }
+        viewModelScope.launch {
+            messages.collect { msgs ->
+                if (msgs.any { it.status != MessageStatus.READ && it.senderId != "me" }) {
+                    repository.markConversationAsRead(conversationId)
+                }
+            }
+        }
+    }
+
+    fun markAsRead() {
+        viewModelScope.launch {
+            repository.markConversationAsRead(conversationId)
+        }
+    }
+
     private val _isPeerTyping = MutableStateFlow(false)
     val isPeerTyping: StateFlow<Boolean> = _isPeerTyping.asStateFlow()
 

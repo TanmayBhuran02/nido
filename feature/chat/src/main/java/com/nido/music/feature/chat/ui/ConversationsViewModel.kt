@@ -27,7 +27,16 @@ class ConversationsViewModel @Inject constructor(
     val conversations: StateFlow<List<ConversationEntity>> = repository.getConversations()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val totalUnreadCount: StateFlow<Int> = repository.getTotalUnreadCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     val deletedContactIds: StateFlow<Set<String>> = repository.deletedContactIdsFlow
+
+    fun markConversationAsRead(convId: String) {
+        viewModelScope.launch {
+            repository.markConversationAsRead(convId)
+        }
+    }
 
     fun setUsername(newUsername: String, inviteCode: String? = null, onComplete: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
@@ -44,6 +53,7 @@ class ConversationsViewModel @Inject constructor(
         username: String,
         password: String,
         email: String?,
+        phone: String,
         inviteCode: String? = null,
         onComplete: (Boolean, String?) -> Unit
     ) {
@@ -52,6 +62,7 @@ class ConversationsViewModel @Inject constructor(
                 desiredUsername = username,
                 password = password,
                 email = email,
+                phone = phone,
                 inviteCode = inviteCode?.takeIf { it.isNotBlank() }
             )
             if (result.isSuccess) {

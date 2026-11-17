@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -81,6 +83,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var themeManager: com.nido.music.core.common.ThemeManager
 
+    @Inject
+    lateinit var chatRepository: com.nido.music.feature.chat.data.ChatRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         try {
             installSplashScreen()
@@ -120,7 +125,7 @@ class MainActivity : ComponentActivity() {
 
             NidoTheme(darkTheme = isSystemDark, themeMode = themeMode) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    NidoApp(playbackController)
+                    NidoApp(playbackController, chatRepository)
 
                     AnimatedVisibility(
                         visible = showSplash,
@@ -149,13 +154,17 @@ class MainActivity : ComponentActivity() {
 
 
 @Composable
-fun NidoApp(playbackController: PlaybackController) {
+fun NidoApp(
+    playbackController: PlaybackController,
+    chatRepository: com.nido.music.feature.chat.data.ChatRepository
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
     val currentSong by playbackController.currentSong.collectAsState()
     val isPlaying by playbackController.isPlaying.collectAsState()
+    val unreadChatCount by chatRepository.getTotalUnreadCount().collectAsState(initial = 0)
 
     val showBottomBar = currentRoute in TopLevelDestination.entries.map { it.route }
     val tints = com.nido.music.ui.theme.LocalGlassTints.current
@@ -193,6 +202,7 @@ fun NidoApp(playbackController: PlaybackController) {
             ) {
                 SimpleBottomBar(
                     currentRoute = currentRoute,
+                    unreadChatCount = unreadChatCount,
                     onNavigate = { destination ->
                         navController.navigate(destination.route) {
                             popUpTo(TopLevelDestination.LIBRARY.route) {
@@ -295,6 +305,7 @@ private fun SimpleMiniPlayer(
 @Composable
 private fun SimpleBottomBar(
     currentRoute: String?,
+    unreadChatCount: Int = 0,
     onNavigate: (TopLevelDestination) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -337,12 +348,29 @@ private fun SimpleBottomBar(
                         ) { onNavigate(destination) }
                         .padding(horizontal = 16.dp, vertical = 6.dp)
                 ) {
-                    Icon(
-                        imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
-                        contentDescription = destination.label,
-                        tint = iconColor,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    BadgedBox(
+                        badge = {
+                            if (destination == TopLevelDestination.CHAT && unreadChatCount > 0) {
+                                Badge(
+                                    containerColor = tints.accent,
+                                    contentColor = tints.canvasFloor
+                                ) {
+                                    Text(
+                                        text = if (unreadChatCount > 99) "99+" else unreadChatCount.toString(),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
+                            contentDescription = destination.label,
+                            tint = iconColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                     Text(
                         text = destination.label,
                         color = textColor,

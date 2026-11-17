@@ -46,6 +46,7 @@ fun RegisterScreen(
 
     // Registration state
     var username by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -74,6 +75,17 @@ fun RegisterScreen(
         }
 
         if (!isLoginMode) {
+            val cleanPhone = phone.trim()
+            if (cleanPhone.isBlank()) {
+                errorMessage = "Phone number is mandatory"
+                return
+            }
+            val digits = cleanPhone.replace("[^0-9]".toRegex(), "")
+            if (digits.length < 8) {
+                errorMessage = "Please enter a valid phone number (at least 8 digits)"
+                return
+            }
+
             val cleanEmail = email.trim()
             if (cleanEmail.isBlank()) {
                 errorMessage = "Email is required for password recovery"
@@ -110,6 +122,7 @@ fun RegisterScreen(
                 username = cleanUsername,
                 password = password,
                 email = email.trim(),
+                phone = phone.trim(),
                 inviteCode = inviteCode.trim().takeIf { it.isNotBlank() }
             ) { success, err ->
                 isLoading = false
@@ -270,6 +283,32 @@ fun RegisterScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            // Phone input (registration only - mandatory)
+            if (!isLoginMode) {
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = {
+                        phone = it
+                        errorMessage = null
+                    },
+                    label = { Text("Phone Number *") },
+                    placeholder = { Text("e.g. +1234567890") },
+                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                    supportingText = { Text("Mandatory for registration", fontSize = 11.sp) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Phone,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
             // Email input (registration only)
             if (!isLoginMode) {
                 Spacer(modifier = Modifier.height(12.dp))
@@ -394,7 +433,7 @@ fun RegisterScreen(
             // Submit Button
             Button(
                 onClick = { validateAndSubmit() },
-                enabled = !isLoading && username.isNotBlank() && password.isNotBlank() && (isLoginMode || email.isNotBlank()),
+                enabled = !isLoading && username.isNotBlank() && password.isNotBlank() && (isLoginMode || (email.isNotBlank() && phone.isNotBlank())),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),

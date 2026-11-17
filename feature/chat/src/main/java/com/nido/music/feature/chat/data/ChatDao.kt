@@ -17,6 +17,15 @@ interface ChatDao {
     @Query("UPDATE conversations SET title = :newTitle WHERE id = :convId")
     suspend fun updateConversationTitle(convId: String, newTitle: String)
 
+    @Query("UPDATE conversations SET unreadCount = 0 WHERE id = :convId")
+    suspend fun markConversationRead(convId: String)
+
+    @Query("SELECT COALESCE(SUM(unreadCount), 0) FROM conversations")
+    fun getTotalUnreadCount(): Flow<Int>
+
+    @Query("UPDATE messages SET status = 'READ' WHERE conversationId = :convId AND status != 'READ'")
+    suspend fun markMessagesAsRead(convId: String)
+
     @Query("SELECT * FROM messages WHERE conversationId = :convId ORDER BY timestamp ASC")
     fun getMessages(convId: String): Flow<List<MessageEntity>>
 
