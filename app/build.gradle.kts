@@ -24,8 +24,8 @@ android {
         debug {
             isDebuggable = true
             applicationIdSuffix = ".debug"
-            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8000/\"")
-            buildConfigField("String", "WS_URL", "\"ws://10.0.2.2:8000/ws\"")
+            buildConfigField("String", "BASE_URL", "\"https://semester-southeast-modern-fundamentals.trycloudflare.com/\"")
+            buildConfigField("String", "WS_URL", "\"wss://semester-southeast-modern-fundamentals.trycloudflare.com/api/v1/ws\"")
         }
         release {
             isMinifyEnabled = true
