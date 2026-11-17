@@ -36,7 +36,34 @@ data class AuthResponse(
     val device_id: Int,
     val access_token: String,
     val refresh_token: String,
-    val token_type: String = "bearer"
+    val token_type: String = "bearer",
+    val email: String? = null,
+    val phone: String? = null
+)
+
+@Serializable
+data class ProfileUpdateRequest(
+    val phone: String,
+    val email: String? = null,
+    val username: String? = null
+)
+
+@Serializable
+data class ProfileUpdateResponse(
+    val user_id: String,
+    val username: String,
+    val phone: String? = null,
+    val email: String? = null,
+    val access_token: String? = null,
+    val refresh_token: String? = null
+)
+
+@Serializable
+data class UserProfileResponse(
+    val user_id: String,
+    val username: String,
+    val phone: String? = null,
+    val email: String? = null
 )
 
 @Serializable
@@ -90,7 +117,25 @@ data class SendMessageRequest(
     val message_type: Int = 1,
     val sender_device_id: Int = 1,
     val reply_to_id: String? = null,
-    val is_forwarded: Boolean = false
+    val is_forwarded: Boolean = false,
+    val client_msg_id: String? = null
+)
+
+@Serializable
+data class ReceiptOut(
+    val message_id: String,
+    val status: String
+)
+
+@Serializable
+data class MarkReadRequest(
+    val message_ids: List<String>,
+    val peer_user_id: String? = null
+)
+
+@Serializable
+data class AckReceiptsRequest(
+    val message_ids: List<String>
 )
 
 @Serializable
@@ -132,6 +177,17 @@ interface ChatRelayApi {
     @POST("/api/v1/auth/login")
     suspend fun login(@Body req: LoginRequest): AuthResponse
 
+    @GET("/api/v1/auth/me")
+    suspend fun getMyProfile(
+        @Header("Authorization") auth: String
+    ): UserProfileResponse
+
+    @PUT("/api/v1/auth/profile")
+    suspend fun updateProfile(
+        @Header("Authorization") auth: String,
+        @Body req: ProfileUpdateRequest
+    ): ProfileUpdateResponse
+
     @GET("/api/v1/auth/user/{username}")
     suspend fun getUserByUsername(@Path("username") username: String): RegisteredContact
 
@@ -167,5 +223,22 @@ interface ChatRelayApi {
     suspend fun ackMessage(
         @Header("Authorization") auth: String,
         @Path("message_id") messageId: String
+    )
+
+    @POST("/api/v1/messages/receipts/read")
+    suspend fun sendReadReceipts(
+        @Header("Authorization") auth: String,
+        @Body req: MarkReadRequest
+    )
+
+    @GET("/api/v1/messages/receipts/pending")
+    suspend fun getPendingReceipts(
+        @Header("Authorization") auth: String
+    ): List<ReceiptOut>
+
+    @POST("/api/v1/messages/receipts/ack")
+    suspend fun ackReceipts(
+        @Header("Authorization") auth: String,
+        @Body req: AckReceiptsRequest
     )
 }

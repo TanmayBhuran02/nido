@@ -36,6 +36,7 @@ class ChatDetailViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
+        repository.activeConversationId = conversationId
         viewModelScope.launch {
             repository.markConversationAsRead(conversationId)
             _conversation.value = repository.getConversation(conversationId)
@@ -208,6 +209,9 @@ class ChatDetailViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        if (repository.activeConversationId == conversationId) {
+            repository.activeConversationId = null
+        }
         stopAudioPlayback()
         super.onCleared()
     }

@@ -16,6 +16,7 @@ async def init_db():
                 cols = [r[1] for r in rows]
                 if cols and "email" not in cols:
                     sync_conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
+                sync_conn.execute(text("CREATE TABLE IF NOT EXISTS message_receipts (id VARCHAR(36) PRIMARY KEY, message_id VARCHAR(64), recipient_user_id VARCHAR(36), status VARCHAR(16), created_at DATETIME)"))
             except Exception:
                 pass
         await conn.run_sync(_migrate)

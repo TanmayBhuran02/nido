@@ -42,12 +42,14 @@ fun RegisterScreen(
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
 
+    val authState by viewModel.authState.collectAsState()
+
     var isLoginMode by remember { mutableStateOf(false) }
 
     // Registration state
-    var username by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
+    var username by remember(authState.username) { mutableStateOf(authState.username ?: "") }
+    var phone by remember(authState.phone) { mutableStateOf(authState.phone ?: "") }
+    var email by remember(authState.email) { mutableStateOf(authState.email ?: "") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var inviteCode by remember { mutableStateOf("") }

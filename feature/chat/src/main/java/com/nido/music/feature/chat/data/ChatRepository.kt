@@ -2,8 +2,7 @@ package com.nido.music.feature.chat.data
 
 import android.content.Context
 import com.nido.music.core.crypto.SignalProtocolManager
-import com.nido.music.core.network.relay.ChatRelayApi
-import com.nido.music.core.network.relay.SendMessageRequest
+import com.nido.music.core.network.relay.*
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +32,9 @@ class ChatRepository @Inject constructor(
     private val deletedContactsPrefs = context.getSharedPreferences("nido_deleted_contacts", Context.MODE_PRIVATE)
     private val _deletedContactIdsFlow = MutableStateFlow<Set<String>>(loadDeletedContactIds())
     val deletedContactIdsFlow: StateFlow<Set<String>> = _deletedContactIdsFlow.asStateFlow()
+
+    @Volatile
+    var activeConversationId: String? = null
 
     private fun loadDeletedContactIds(): Set<String> {
         return deletedContactsPrefs.getStringSet("deleted_ids", emptySet()) ?: emptySet()
@@ -235,7 +237,8 @@ class ChatRepository @Inject constructor(
                                     MessageType.VIDEO -> 7
                                     MessageType.DOC -> 8
                                 },
-                                reply_to_id = replyToId
+                                reply_to_id = replyToId,
+                                client_msg_id = msgId
                             )
                         )
                         chatDao.updateMessageStatus(msgId, MessageStatus.SENT)
@@ -255,10 +258,11 @@ class ChatRepository @Inject constructor(
                 try {
                     flushOutbox()
                     syncPendingMessages()
+                    syncReceipts()
                 } catch (e: Exception) {
                     // Ignore transient errors
                 }
-                delay(3000)
+                delay(2000)
             }
         }
     }
@@ -307,7 +311,8 @@ class ChatRepository @Inject constructor(
                             MessageType.VIDEO -> 7
                             MessageType.DOC -> 8
                         },
-                        reply_to_id = msg.replyToId
+                        reply_to_id = msg.replyToId,
+                        client_msg_id = msg.id
                     )
                 )
                 chatDao.updateMessageStatus(msg.id, MessageStatus.SENT)
@@ -376,13 +381,16 @@ class ChatRepository @Inject constructor(
                     }
                 }
 
+                val isOpen = (convId == activeConversationId)
+                val initialStatus = if (isOpen) MessageStatus.READ else MessageStatus.DELIVERED
+
                 val msg = MessageEntity(
                     id = item.id,
                     conversationId = convId,
                     senderId = peerId,
                     type = detectedType,
                     content = plaintext,
-                    status = MessageStatus.DELIVERED,
+                    status = initialStatus,
                     replyToId = item.reply_to_id,
                     timestamp = System.currentTimeMillis()
                 )
@@ -405,9 +413,18 @@ class ChatRepository @Inject constructor(
                         it.copy(
                             lastMessageSnippet = snippet,
                             lastMessageTimestamp = System.currentTimeMillis(),
-                            unreadCount = it.unreadCount + 1
+                            unreadCount = if (isOpen) it.unreadCount else it.unreadCount + 1
                         )
                     )
+                }
+
+                if (isOpen) {
+                    try {
+                        relayApi.sendReadReceipts(
+                            auth = "Bearer ${auth.accessToken}",
+                            req = MarkReadRequest(message_ids = listOf(item.id), peer_user_id = item.sender_user_id)
+                        )
+                    } catch (_: Exception) {}
                 }
 
                 relayApi.ackMessage("Bearer ${auth.accessToken}", item.id)
@@ -517,8 +534,45 @@ class ChatRepository @Inject constructor(
     fun getTotalUnreadCount(): Flow<Int> = chatDao.getTotalUnreadCount()
 
     suspend fun markConversationAsRead(convId: String) {
+        val unreadIds = chatDao.getUnreadIncomingMessageIds(convId)
         chatDao.markConversationRead(convId)
         chatDao.markMessagesAsRead(convId)
+        if (unreadIds.isNotEmpty()) {
+            val auth = authManager.authState.value
+            if (auth.isLoggedIn && !auth.accessToken.isNullOrEmpty()) {
+                val conv = chatDao.getConversation(convId)
+                val peerUserId = conv?.peerId?.removePrefix("peer_")
+                try {
+                    relayApi.sendReadReceipts(
+                        auth = "Bearer ${auth.accessToken}",
+                        req = MarkReadRequest(message_ids = unreadIds, peer_user_id = peerUserId)
+                    )
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    suspend fun syncReceipts() {
+        val auth = authManager.authState.value
+        if (!auth.isLoggedIn || auth.accessToken.isNullOrEmpty()) return
+        try {
+            val receipts = relayApi.getPendingReceipts("Bearer ${auth.accessToken}")
+            if (receipts.isNotEmpty()) {
+                val ackIds = mutableListOf<String>()
+                for (r in receipts) {
+                    val status = when (r.status.uppercase()) {
+                        "READ" -> MessageStatus.READ
+                        "DELIVERED" -> MessageStatus.DELIVERED
+                        else -> null
+                    }
+                    if (status != null) {
+                        chatDao.updateMessageStatus(r.message_id, status)
+                    }
+                    ackIds.add(r.message_id)
+                }
+                relayApi.ackReceipts("Bearer ${auth.accessToken}", AckReceiptsRequest(ackIds))
+            }
+        } catch (_: Exception) {}
     }
 
     suspend fun uploadClipFile(file: java.io.File): String {

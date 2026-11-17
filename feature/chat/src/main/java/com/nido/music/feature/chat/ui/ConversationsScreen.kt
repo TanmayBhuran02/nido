@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -134,6 +136,15 @@ fun ConversationsScreen(
     val authState by viewModel.authState.collectAsState()
     val deletedContactIds by viewModel.deletedContactIds.collectAsState()
 
+    val needsPhoneUpdate = authState.isLoggedIn && authState.phone.isNullOrBlank()
+    var showPhoneRequiredDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(needsPhoneUpdate) {
+        if (needsPhoneUpdate) {
+            showPhoneRequiredDialog = true
+        }
+    }
+
     var hasContactsPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -210,10 +221,6 @@ fun ConversationsScreen(
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(onClick = { showCreateGroupDialog = true }) {
-                        Icon(Icons.Default.Group, contentDescription = "Create Group")
                     }
                 }
             )
@@ -365,74 +372,147 @@ fun ConversationsScreen(
         }
     }
 
-    if (showEditProfileDialog) {
-        var inputName by remember { mutableStateOf(authState.username ?: "") }
-        var inputInviteCode by remember { mutableStateOf("") }
+    if (showPhoneRequiredDialog || showEditProfileDialog) {
+        val isForcedPhoneUpdate = showPhoneRequiredDialog && authState.phone.isNullOrBlank()
+        var inputName by remember(authState.username) { mutableStateOf(authState.username ?: "") }
+        var inputPhone by remember(authState.phone) { mutableStateOf(authState.phone ?: "") }
+        var inputEmail by remember(authState.email) { mutableStateOf(authState.email ?: "") }
         var errorMsg by remember { mutableStateOf<String?>(null) }
+        var isSubmitting by remember { mutableStateOf(false) }
+
         AlertDialog(
-            onDismissRequest = { showEditProfileDialog = false },
-            title = { Text("My Chat Identity") },
+            onDismissRequest = {
+                if (!isForcedPhoneUpdate) {
+                    showEditProfileDialog = false
+                }
+            },
+            title = {
+                Text(
+                    if (isForcedPhoneUpdate) "Phone Number Required" else "User Profile Details",
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
                 Column {
                     Text(
-                        "Set your unique @username so friends can find and chat with you securely via the Nido relay.",
+                        if (isForcedPhoneUpdate)
+                            "A phone number is required to connect with contacts and identify your chat account. Your current User ID has been pre-filled below."
+                        else
+                            "Update your profile details. Friends can connect with you using your username or phone number.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(
-                        onClick = {
-                            showEditProfileDialog = false
-                            onNavigateToRegister()
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Register with Password & Email")
+                    if (authState.username?.startsWith("user_") == true) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = {
+                                showEditProfileDialog = false
+                                showPhoneRequiredDialog = false
+                                onNavigateToRegister()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Register Account with Password")
+                        }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = inputName,
                         onValueChange = { inputName = it; errorMsg = null },
-                        label = { Text("Quick Username") },
+                        label = { Text("Username / User ID") },
                         placeholder = { Text("e.g. satoshi") },
                         singleLine = true,
-                        isError = errorMsg != null,
-                        supportingText = errorMsg?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
+                        leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+                        isError = errorMsg != null && errorMsg!!.contains("username", ignoreCase = true),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
-                        value = inputInviteCode,
-                        onValueChange = { inputInviteCode = it; errorMsg = null },
-                        label = { Text("Invite Code (if required)") },
-                        placeholder = { Text("e.g. a1b2c3") },
+                        value = inputPhone,
+                        onValueChange = { inputPhone = it; errorMsg = null },
+                        label = { Text("Phone Number (Mandatory)") },
+                        placeholder = { Text("+1 555-0199") },
                         singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        isError = errorMsg != null && errorMsg!!.contains("phone", ignoreCase = true),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = inputEmail,
+                        onValueChange = { inputEmail = it; errorMsg = null },
+                        label = { Text("Email (Optional)") },
+                        placeholder = { Text("you@example.com") },
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        isError = errorMsg != null && errorMsg!!.contains("email", ignoreCase = true),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (errorMsg != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = errorMsg!!,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        if (inputName.isNotBlank()) {
-                            viewModel.setUsername(inputName.trim(), inputInviteCode.trim()) { success, err ->
-                                if (success) {
-                                    showEditProfileDialog = false
-                                } else {
-                                    errorMsg = err ?: "Registration failed"
-                                }
+                        val cleanPhone = inputPhone.trim()
+                        if (cleanPhone.isBlank()) {
+                            errorMsg = "Phone number is mandatory"
+                            return@Button
+                        }
+                        val digits = cleanPhone.replace("[^0-9]".toRegex(), "")
+                        if (digits.length < 6) {
+                            errorMsg = "Please enter a valid phone number"
+                            return@Button
+                        }
+                        android.util.Log.d("ConversationsScreen", "updateProfile click: phone=$cleanPhone, email=${inputEmail.trim()}, username=${inputName.trim()}")
+                        isSubmitting = true
+                        viewModel.updateProfile(
+                            phone = cleanPhone,
+                            email = inputEmail.trim().takeIf { it.isNotBlank() },
+                            username = inputName.trim().takeIf { it.isNotBlank() }
+                        ) { success, err ->
+                            isSubmitting = false
+                            if (success) {
+                                showPhoneRequiredDialog = false
+                                showEditProfileDialog = false
+                            } else {
+                                errorMsg = err ?: "Update failed"
                             }
                         }
-                    }
+                    },
+                    enabled = !isSubmitting
                 ) {
+                    if (isSubmitting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                     Text("Save")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEditProfileDialog = false }) {
-                    Text("Cancel")
+                if (!isForcedPhoneUpdate) {
+                    TextButton(onClick = { showEditProfileDialog = false }) {
+                        Text("Cancel")
+                    }
+                } else {
+                    TextButton(onClick = { showPhoneRequiredDialog = false }) {
+                        Text("Later")
+                    }
                 }
             }
         )
@@ -502,31 +582,13 @@ fun NewChatContactsSheet(
             }
         }
 
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            placeholder = { Text("Search name, number or @username...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear")
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(24.dp),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
+        // Create Encrypted Group
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .clickable { onCreateGroupClick() }
-                .padding(vertical = 10.dp, horizontal = 4.dp),
+                .padding(vertical = 8.dp, horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
@@ -544,10 +606,66 @@ fun NewChatContactsSheet(
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Text("New Encrypted Group", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Column {
+                Text("New Encrypted Group", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("Chat securely with multiple people", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        // Chat by Username - placed above search input
+        Text(
+            "CHAT BY USERNAME",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = manualUsername,
+                onValueChange = { manualUsername = it },
+                placeholder = { Text("e.g. @satoshi") },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = {
+                    if (manualUsername.isNotBlank()) {
+                        onManualUserChat(manualUsername.trim())
+                    }
+                },
+                enabled = manualUsername.isNotBlank()
+            ) {
+                Text("Chat")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Search name, number or @username...") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear")
+                    }
+                }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (!hasContactsPermission) {
             Surface(
@@ -650,41 +768,6 @@ fun NewChatContactsSheet(
                         )
                     }
                 }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "OR CHAT BY USERNAME",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = manualUsername,
-                        onValueChange = { manualUsername = it },
-                        placeholder = { Text("e.g. @satoshi") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            if (manualUsername.isNotBlank()) {
-                                onManualUserChat(manualUsername.trim())
-                            }
-                        },
-                        enabled = manualUsername.isNotBlank()
-                    ) {
-                        Text("Chat")
-                    }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }

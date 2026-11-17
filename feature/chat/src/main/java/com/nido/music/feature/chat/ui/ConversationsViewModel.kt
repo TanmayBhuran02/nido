@@ -32,6 +32,30 @@ class ConversationsViewModel @Inject constructor(
 
     val deletedContactIds: StateFlow<Set<String>> = repository.deletedContactIdsFlow
 
+    init {
+        viewModelScope.launch {
+            if (authManager.authState.value.isLoggedIn) {
+                authManager.fetchProfile()
+            }
+        }
+    }
+
+    fun updateProfile(
+        phone: String,
+        email: String? = null,
+        username: String? = null,
+        onComplete: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = authManager.updateProfile(phone = phone, email = email, username = username)
+            if (result.isSuccess) {
+                onComplete(true, null)
+            } else {
+                onComplete(false, result.exceptionOrNull()?.message)
+            }
+        }
+    }
+
     fun markConversationAsRead(convId: String) {
         viewModelScope.launch {
             repository.markConversationAsRead(convId)

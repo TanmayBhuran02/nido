@@ -87,6 +87,15 @@ class PendingMessage(Base):
     is_forwarded = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+class MessageReceipt(Base):
+    __tablename__ = "message_receipts"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    message_id = Column(String(64), nullable=False, index=True)
+    recipient_user_id = Column(String(36), nullable=False, index=True)
+    status = Column(String(16), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
 class Group(Base):
     __tablename__ = "groups"
 
